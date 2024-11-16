@@ -9,7 +9,7 @@ from enum import Enum
 class DownloadStatus(Enum):
     QUEUED = "queued"
     DOWNLOADING = "downloading"
-    COMPLETE = "Download complete!"
+    COMPLETE = "complete!"
     CANCELED = "canceled"
     ERROR = "error"
 
@@ -17,7 +17,8 @@ class DownloadStatus(Enum):
 # Define the request model for download parameters
 class DownloadRequest(BaseModel):
     video_ids: List[str]
-    quality: str | None = None
+    video_title: str
+    quality: str
     save_folder: str
 
 
@@ -45,21 +46,16 @@ class DownloadTask:
         elif d["status"] == "error":
             self.status = DownloadStatus.ERROR
 
-    async def download(self, quality: str, save_folder: str):
+    async def download(self, quality: str, save_folder: str, title):
         if self.status == DownloadStatus.CANCELED:
             # Reset the task status before starting a new download
             self.status = DownloadStatus.QUEUED
 
         ydl_opts = {
             "format": quality,
-            "outtmpl": f"{save_folder}/{self.video_title} - {self.video_id}.mp4",
+            "outtmpl": f"{save_folder}/{title} - {self.video_id}.mp4",
             "progress_hooks": [self.progress_hook],
             "merge_output_format": "mp4",
-            # "postprocessors": [
-            #     {
-            #         "key": "FFmpegMerger",
-            #     }
-            # ],
         }
 
         # Create a new task to run the download

@@ -1,35 +1,31 @@
-import json
-import asyncio
 import os
-import time
 from datetime import datetime
-from typing import List, Literal, Dict, Generator, Any
+from typing import List, Literal
 from dotenv import load_dotenv
 
 from typing import Annotated
-from fastapi import FastAPI, Query, Depends, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, Query, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from .routers import downloads
+
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from pydantic import BaseModel, Field
-from yt_dlp import YoutubeDL
 
 from .core.tools import (
-    authenticate_youtube,
     get_playlist,
     add_playlist_videos,
     get_subscriptions,
     get_subscriptions_videos,
 )
 
-from .core.download import DownloadTask, DownloadRequest, DownloadStatus
-from yt_dlp import YoutubeDL
+from .dependencies.dependency import get_credentials
 
 app = FastAPI()
+app.include_router(downloads.router)
+
 load_dotenv()
-download_tasks: Dict[str, "DownloadTask"] = {}
 
 origins = [
     "http://localhost.tiangolo.com",
@@ -49,12 +45,6 @@ app.add_middleware(
 
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
 youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-
-
-async def get_credentials():
-    # Dependency to inject credentials
-    credentials = authenticate_youtube()
-    return credentials
 
 
 class YouTubeSearchParams(BaseModel):
@@ -291,7 +281,7 @@ async def add_videos_to_playlist(
 @app.get("/subs/videos/")
 async def fetch_home_feed(
     max_results: int = 10,
-    credentials=Depends(authenticate_youtube),
+    credentials=Depends(get_credentials),
 ):
     """
     Fetches the user's YouTube home feed.
@@ -306,7 +296,7 @@ async def fetch_home_feed(
 @app.get("/collect/video")
 async def get_video_details(
     video_id: str = Query(..., description="The ID of the YouTube video"),
-    credentials=Depends(authenticate_youtube),
+    credentials=Depends(get_credentials),
 ):
     """
     Fetch details of a YouTube video by video ID.
@@ -329,158 +319,3 @@ async def get_video_details(
 
     except HttpError as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
-
-
-# Initiate download for multiple videos in the background
-@app.post("/download/")
-async def initiate_download(
-    request: DownloadRequest, background_tasks: BackgroundTasks
-):
-    def cleanup_task(video_id: str):
-        # Remove the task from download_tasks once it's complete or canceled
-        download_tasks.pop(video_id, None)
-
-    for video_id in request.video_ids:
-        # Create and store a DownloadTask for each video with the cleanup callback
-        task = DownloadTask(video_id, on_complete=cleanup_task)
-        download_tasks[video_id] = task
-        # Schedule the background download task
-        background_tasks.add_task(task.download, request.quality, request.save_folder)
-
-    return {"message": "Download started", "video_ids": request.video_ids}
-
-
-# Stream download progress for a specific video ID
-@app.get("/progress/{video_id}")
-async def stream_progress(video_id: str) -> StreamingResponse:
-    """Streams download progress data via SSE."""
-    if video_id not in download_tasks:
-        raise HTTPException(
-            status_code=404, detail=f"Download with id: '{video_id}' not found"
-        )
-
-    task = download_tasks[video_id]
-
-    async def event_generator() -> Generator[str, None, None]:
-        while task.status not in {DownloadStatus.COMPLETE, DownloadStatus.CANCELED}:
-            progress_data = {
-                "video_id": task.video_id,
-                "downloaded_bytes": task.downloaded_bytes,
-                "total_bytes": task.total_bytes,
-                "status": task.status.value,  # Now `status` is an enum
-            }
-            yield f"data: {json.dumps(progress_data)}\n\n"
-            await asyncio.sleep(1)
-
-        # Final update after download is complete
-        progress_data = {
-            "video_id": task.video_id,
-            "downloaded_bytes": task.downloaded_bytes,
-            "total_bytes": task.total_bytes,
-            "status": task.status.value,
-        }
-        yield f"data: {json.dumps(progress_data)}\n\n"
-
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
-class CancelParams(BaseModel):
-    video_ids: List[str]
-
-
-# Cancel downloads for specified video IDs
-@app.post("/cancel_downloads/")
-async def cancel_downloads(params: CancelParams):
-    for video_id in params.video_ids:
-        if video_id in download_tasks:
-            download_tasks[video_id].cancel()
-            # Immediately remove from download_tasks after cancellation
-            download_tasks.pop(video_id, None)
-    return {
-        "message": "Cancellation requested for specified downloads",
-        "video_ids": params.video_ids,
-    }
-
-
-# Simple in-memory cache
-video_formats_cache: Dict[str, Dict[str, Any]] = {}
-cache_expiration_time = 300  # Cache expiration time in seconds (5 minutes)
-
-
-async def fetch_video_formats(video_id: str):
-    """Fetch video formats with yt-dlp for a given video ID."""
-    ydl_opts = {
-        "skip_download": True,
-        # "format": "bestvideo+bestaudio/best",
-        "merge_output_format": "mp4",
-        "quiet": False,  # Disable quiet mode for detailed logs
-        "verbose": True,  # Enable verbose output
-        "postprocessors": [
-            {
-                "key": "FFmpegMerger",
-            }
-        ],
-    }
-
-    try:
-        with YoutubeDL(ydl_opts) as ydl:
-            info = await asyncio.to_thread(
-                ydl.extract_info,
-                f"https://www.youtube.com/watch?v={video_id}",
-                # False,
-            )
-
-            # download_tasks[video_id].video_title = info.get(
-            #     "title", f"Video {video_id}"
-            # )
-            # Process formats
-            formats = [
-                {
-                    "format_id": f["format_id"],
-                    "ext": f["ext"],
-                    "resolution": f.get("resolution"),
-                    "vcodec": f.get("vcodec"),
-                    "acodec": f.get("acodec"),
-                    "filesize": f.get("filesize"),
-                    "fps": f.get("fps"),
-                    "type": (
-                        "video+audio"
-                        if f.get("vcodec") != "none" and f.get("acodec") != "none"
-                        else "video-only" if f.get("vcodec") != "none" else "audio-only"
-                    ),
-                }
-                for f in info.get("formats", [])
-            ]
-
-            return {
-                "video_id": video_id,
-                "title": info.get("title"),
-                "formats": formats,
-            }
-    except Exception as e:
-        print(f"Error fetching video formats for {video_id}: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while fetching formats.",
-        )
-
-
-async def get_video_formats(video_id: str):
-    """Get video formats from cache or fetch them if not cached."""
-    current_time = time.time()
-
-    # Check cache first
-    if video_id in video_formats_cache:
-        cache_entry = video_formats_cache[video_id]
-        if current_time - cache_entry["timestamp"] < cache_expiration_time:
-            return cache_entry["data"]
-
-    # Fetch data if not in cache or expired
-    data = await fetch_video_formats(video_id)
-    video_formats_cache[video_id] = {"data": data, "timestamp": current_time}
-    return data
-
-
-@app.get("/formats/{video_id}")
-async def get_formats(video_id: str):
-    return await get_video_formats(video_id)
