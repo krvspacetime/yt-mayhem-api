@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import FastAPI, Query, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import downloads, search
+from .routers import downloads, search, channels
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -23,6 +23,7 @@ from .dependencies.dependency import get_credentials, get_youtube
 app = FastAPI()
 app.include_router(downloads.router)
 app.include_router(search.router)
+app.include_router(channels.router)
 
 load_dotenv()
 
@@ -41,9 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-# youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 
 # Endpoint to get subscribed channels
@@ -153,9 +151,6 @@ async def get_video_comments(
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
 
-# Define a model to receive playlist details
-
-
 @app.post("/playlists/")
 async def add_playlist(
     playlist_request: PlaylistCreateRequest = Depends(),
@@ -240,6 +235,7 @@ async def fetch_home_feed(
 @app.get("/collect/video")
 async def get_video_details(
     video_id: str = Query(..., description="The ID of the YouTube video"),
+    part: str = "snippet,statistics,contentDetails",
     credentials=Depends(get_credentials),
 ):
     """
@@ -247,12 +243,7 @@ async def get_video_details(
     """
     try:
         youtube = build("youtube", "v3", credentials=credentials)
-        request = youtube.videos().list(
-            part="snippet,statistics, contentDetails", id=video_id
-        )
-        # request = youtube.videos().list(
-        #     part="snippet,statistics,contentDetails", id=video_id
-        # )
+        request = youtube.videos().list(part=part, id=video_id)
         response = request.execute()
 
         if not response["items"]:
