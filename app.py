@@ -1,17 +1,13 @@
-import os
-from datetime import datetime
-from typing import List, Literal
 from dotenv import load_dotenv
 
 from typing import Annotated
 from fastapi import FastAPI, Query, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import downloads
+from .routers import downloads, search
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from pydantic import BaseModel, Field
 
 from .core.tools import (
     get_playlist,
@@ -20,10 +16,13 @@ from .core.tools import (
     get_subscriptions_videos,
 )
 
-from .dependencies.dependency import get_credentials
+from .models.playlists import PlaylistCreateRequest, PlaylistAddVideosRequest
+
+from .dependencies.dependency import get_credentials, get_youtube
 
 app = FastAPI()
 app.include_router(downloads.router)
+app.include_router(search.router)
 
 load_dotenv()
 
@@ -43,53 +42,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
-youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
-
-
-class YouTubeSearchParams(BaseModel):
-    query: str
-    max_results: int = Field(15, ge=1, le=50)
-    page_token: str | None = None
-    safeSearch: Literal["none", "moderate", "strict"] = "none"
-    videoDefinition: Literal["any", "high", "medium", "low"] = "any"
-    videoDuration: Literal["any", "long", "medium", "short"] = "any"
-    videoType: Literal["any", "episode", "movie"] = "any"
-    order: Literal["relevance", "date", "rating", "viewCount"] = "relevance"
-    publishedAfter: datetime | None = None
-    publishedBefore: datetime | None = None
-
-
-@app.get("/search")
-def youtube_search(params: YouTubeSearchParams = Depends()):
-    request = youtube.search().list(
-        part="snippet",
-        q=params.query,
-        type="video",
-        maxResults=params.max_results,
-        pageToken=params.page_token,  # If provided, fetch the next page
-        safeSearch=params.safeSearch,
-        videoDefinition=params.videoDefinition,
-        videoDuration=params.videoDuration,
-        videoType=params.videoType,
-        order=params.order,
-        publishedAfter=(
-            params.publishedAfter.isoformat() if params.publishedAfter else None
-        ),
-        publishedBefore=(
-            params.publishedBefore.isoformat() if params.publishedBefore else None
-        ),
-    )
-
-    response = request.execute()
-
-    # Return the results including the nextPageToken for pagination
-    return {
-        "results": response.get("items", []),
-        "nextPageToken": response.get("nextPageToken"),
-        "totalResults": response["pageInfo"]["totalResults"],
-        "resultsPerPage": response["pageInfo"]["resultsPerPage"],
-    }
+# YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
+# youtube = build("youtube", "v3", developerKey=YOUTUBE_API_KEY)
 
 
 # Endpoint to get subscribed channels
@@ -162,6 +116,7 @@ async def get_video_comments(
     video_id: str,
     max_results: int = Query(10, ge=1, le=100),
     page_token: str | None = None,
+    youtube=Depends(get_youtube),
 ):
     """
     Get comments for a specific YouTube video.
@@ -199,12 +154,6 @@ async def get_video_comments(
 
 
 # Define a model to receive playlist details
-class PlaylistCreateRequest(BaseModel):
-    title: str
-    description: str
-    privacyStatus: Literal["public", "private", "unlisted"] = (
-        "private"  # Options: "public", "private", or "unlisted"
-    )
 
 
 @app.post("/playlists/")
@@ -246,11 +195,6 @@ async def add_playlist(
     except HttpError as e:
         print(f"HttpError: {e}")  # Print error details for further inspection
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
-
-
-class PlaylistAddVideosRequest(BaseModel):
-    playlist_id: str
-    video_ids: str | List[str]  # List of video IDs to add
 
 
 @app.post("/playlists/add/")
