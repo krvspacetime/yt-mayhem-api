@@ -1,14 +1,16 @@
+from googleapiclient.discovery import build
 from fastapi import APIRouter, Depends
 from ..models.search import YouTubeSearchParams
-from ..dependencies.dependency import get_youtube
+from ..dependencies.dependency import get_credentials
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
 
 @router.get("/")
 def youtube_search(
-    params: YouTubeSearchParams = Depends(), youtube=Depends(get_youtube)
+    params: YouTubeSearchParams = Depends(), credentials=Depends(get_credentials)
 ):
+    youtube = build("youtube", "v3", credentials=credentials)
     request = youtube.search().list(
         part="snippet",
         q=params.query,

@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 
 from googleapiclient.discovery import build
 
-from ..core.tools import authenticate_youtube
+from ..routers.ouauth2 import authenticate_youtube
 
 load_dotenv()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")

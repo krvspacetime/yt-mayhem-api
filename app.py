@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import FastAPI, Query, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import downloads, search, channels
+from .routers import downloads, search, channels, ouauth2
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -24,6 +24,7 @@ app = FastAPI()
 app.include_router(downloads.router)
 app.include_router(search.router)
 app.include_router(channels.router)
+app.include_router(ouauth2.router)
 
 load_dotenv()
 
@@ -84,7 +85,7 @@ async def collect_playlists(
 @app.get("/collect/playlist/{playlist_id}")
 async def get_playlist_videos(
     playlist_id: str,
-    max_results: int = Query(1000, ge=1, le=1000),
+    max_results: int = Query(20, ge=1, le=1000),
     credentials=Depends(get_credentials),
 ):
     try:
@@ -235,7 +236,7 @@ async def fetch_home_feed(
 @app.get("/collect/video")
 async def get_video_details(
     video_id: str = Query(..., description="The ID of the YouTube video"),
-    part: str = "snippet,statistics,contentDetails",
+    part: str = "snippet,statistics,contentDetails,fileDetails",
     credentials=Depends(get_credentials),
 ):
     """

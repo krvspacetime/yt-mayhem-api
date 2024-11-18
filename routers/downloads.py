@@ -1,11 +1,15 @@
+import asyncio
+import json
+import time
+import subprocess
+
+from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Generator
-import asyncio
-import json
-import time
 from yt_dlp import YoutubeDL
+
 
 # Replace these with the imports and definitions of your custom classes and enums
 from ..core.download import (
@@ -160,3 +164,45 @@ async def get_video_formats(video_id: str):
 @router.get("/formats/{video_id}")
 async def get_formats(video_id: str):
     return await get_video_formats(video_id)
+
+
+# Request body model
+class DownloadRequest(BaseModel):
+    video_url: str
+    video_format_id: str
+    audio_format_id: str
+    output_filename: str
+    output_format: str  # Example: "mp4", "mkv"
+
+
+@router.post("/download/sub")
+async def download_video(request: DownloadRequest):
+    output_dir = Path("downloads")  # Directory to save the files
+    output_dir.mkdir(exist_ok=True)
+
+    # Construct the full output path
+    output_file = output_dir / f"{request.output_filename}.{request.output_format}"
+
+    # yt-dlp command to download specified formats and combine
+    cmd = [
+        "yt-dlp",
+        request.video_url,
+        "-f",
+        f"{request.video_format_id}+{request.audio_format_id}",  # Specify formats
+        "--merge-output-format",
+        request.output_format,  # Output format
+        "-o",
+        str(output_file),  # Output filename
+    ]
+
+    try:
+        # Run the yt-dlp command
+        subprocess.run(cmd, check=True, text=True, capture_output=True)
+        return {
+            "message": "Download and merge completed successfully.",
+            "file_path": str(output_file),
+        }
+    except subprocess.CalledProcessError as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error downloading video: {e.stderr}"
+        )

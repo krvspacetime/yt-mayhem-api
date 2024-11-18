@@ -1,17 +1,18 @@
-from pydantic import BaseModel, Field, validator
-from typing import Dict
+from pydantic import BaseModel, validator, Field
+from typing import Dict, Literal
+from datetime import datetime
 
 
 class ChannelInfoRequest(BaseModel):
-    channel_id: str = Field(..., example="UC_x5XG1OV2P6uZZ5FSM9Ttw")
+    channel_id: str
 
     @validator("channel_id")
-    def validate_channel_id(cls, value):
-        if not value.startswith("UC"):
+    def validate_channel_id(cls, channel_id):
+        if not channel_id.startswith("UC"):
             raise ValueError(
                 "Invalid channel ID format. Channel IDs must start with 'UC'."
             )
-        return value
+        return channel_id
 
 
 class ChannelInfoResponse(BaseModel):
@@ -23,3 +24,16 @@ class ChannelInfoResponse(BaseModel):
     country: str | None
     statistics: Dict
     thumbnails: Dict
+
+
+class ChannelSearchParams(BaseModel):
+    channel_id: str
+    part: Literal["snippet", "statistics"] = "snippet"
+    max_results: int = Field(15, ge=1, le=50)
+    page_token: str | None = None
+    videoDefinition: Literal["any", "high", "medium", "low"] = "any"
+    videoDuration: Literal["any", "long", "medium", "short"] = "any"
+    videoType: Literal["any", "episode", "movie"] = "any"
+    order: Literal["relevance", "date", "rating", "viewCount"] = "date"
+    publishedAfter: datetime | None = None
+    publishedBefore: datetime | None = None
