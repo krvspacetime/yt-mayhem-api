@@ -4,7 +4,7 @@ import time
 import subprocess
 
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Dict, Any, Generator
@@ -13,10 +13,11 @@ from yt_dlp import YoutubeDL
 
 # Replace these with the imports and definitions of your custom classes and enums
 from ..core.download import (
-    DownloadRequest,
     DownloadTask,
     DownloadStatus,
 )  # Example import
+
+from ..models.downloads import DownloadRequest
 
 # Router definition
 router = APIRouter(prefix="/downloads", tags=["Downloads"])
@@ -30,7 +31,8 @@ cache_expiration_time = 60 * 30  # Cache expiration time in seconds
 
 @router.post("/download/")
 async def initiate_download(
-    request: DownloadRequest, background_tasks: BackgroundTasks
+    request: DownloadRequest,
+    background_tasks: BackgroundTasks,
 ):
     def cleanup_task(video_id: str):
         # Remove the task from download_tasks once it's complete or canceled
@@ -42,7 +44,12 @@ async def initiate_download(
         download_tasks[video_id] = task
         # Schedule the background download task
         background_tasks.add_task(
-            task.download, request.quality, request.save_folder, request.video_title
+            task.download,
+            request.quality,
+            request.save_folder,
+            request.video_title,
+            request.video_format_id,
+            request.audio_format_id,
         )
 
     return {"message": "Download started", "video_ids": request.video_ids}
@@ -171,14 +178,15 @@ class DownloadRequest(BaseModel):
     video_url: str
     video_format_id: str
     audio_format_id: str
-    output_filename: str
-    output_format: str  # Example: "mp4", "mkv"
+    output_filename: str = "output"
+    output_format: str = "mp4"
+    output_dir: str = "./tmp"
 
 
 @router.post("/download/sub")
 async def download_video(request: DownloadRequest):
     output_dir = Path("downloads")  # Directory to save the files
-    output_dir.mkdir(exist_ok=True)
+    output_dir.mkdir(exist_ok=True)  # Create the directory if it doesn't exist
 
     # Construct the full output path
     output_file = output_dir / f"{request.output_filename}.{request.output_format}"

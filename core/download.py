@@ -46,13 +46,27 @@ class DownloadTask:
         elif d["status"] == "error":
             self.status = DownloadStatus.ERROR
 
-    async def download(self, quality: str, save_folder: str, title):
+    async def download(
+        self,
+        quality: Optional[str],
+        save_folder: str,
+        title: str,
+        video_format_id: Optional[str] = None,
+        audio_format_id: Optional[str] = None,
+    ):
         if self.status == DownloadStatus.CANCELED:
-            # Reset the task status before starting a new download
             self.status = DownloadStatus.QUEUED
 
+        # Determine the format string
+        if video_format_id and audio_format_id:
+            format_str = f"{video_format_id}+{audio_format_id}"
+        elif quality:
+            format_str = quality
+        else:
+            raise ValueError("Either quality or explicit format IDs must be provided.")
+
         ydl_opts = {
-            "format": quality,
+            "format": format_str,
             "outtmpl": f"{save_folder}/{title} - {self.video_id}.mp4",
             "progress_hooks": [self.progress_hook],
             "merge_output_format": "mp4",
@@ -62,7 +76,7 @@ class DownloadTask:
         self._task = asyncio.create_task(self._run_download(ydl_opts))
 
         try:
-            await self._task  # Wait for the download to complete or be cancelled
+            await self._task
         except asyncio.CancelledError:
             self.status = DownloadStatus.CANCELED
             self._cancel_event.set()

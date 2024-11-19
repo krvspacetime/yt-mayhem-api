@@ -1,14 +1,16 @@
 import re
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, validator
 
 
 class DownloadRequest(BaseModel):
     video_ids: List[str]
     video_title: str
-    quality: str
+    quality: Optional[str] = None  # For backward compatibility
     save_folder: str
+    video_format_id: Optional[str] = None  # Explicit video format
+    audio_format_id: Optional[str] = None  # Explicit audio format
 
     @validator("video_ids", each_item=True)
     def validate_video_id(cls, video_id):
