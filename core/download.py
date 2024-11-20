@@ -28,6 +28,7 @@ class DownloadTask:
     def __init__(self, video_id: str, on_complete: Optional[Callable] = None):
         self.video_id = video_id
         self.video_title = None
+        self.output_dir = "./tmp"
         self.downloaded_bytes = 0
         self.total_bytes = None
         self.elapsed_time = 0
@@ -70,6 +71,7 @@ class DownloadTask:
         if self.status == DownloadStatus.CANCELED:
             self.status = DownloadStatus.QUEUED
 
+        self.output_dir = output_dir
         print("Downloading video:", self.video_id)
         print("Quality:", quality)
         print("Format IDs:", video_format_id, audio_format_id)

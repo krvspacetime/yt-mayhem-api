@@ -1,3 +1,4 @@
+import os
 import asyncio
 import json
 import time
@@ -216,3 +217,52 @@ async def download_video(request: DownloadRequest):
         raise HTTPException(
             status_code=500, detail=f"Error downloading video: {e.stderr}"
         )
+
+
+import os
+import subprocess
+from fastapi import HTTPException
+
+
+@router.get("/open_folder/{video_id}")
+async def open_folder(video_id: str):
+    # Ensure the video ID exists in the task manager
+    if video_id not in download_tasks:
+        raise HTTPException(
+            status_code=404, detail=f"No download task found for video ID: {video_id}"
+        )
+
+    # Get the output directory from the task
+    task = download_tasks[video_id]
+    folder_path = task.output_dir
+    print(f"Folder: {folder_path}")
+
+    if not folder_path:
+        raise HTTPException(
+            status_code=400, detail="Output directory not set for this download task."
+        )
+
+    # Resolve absolute path
+    absolute_path = os.path.abspath(folder_path)
+    print(f"Abs path: {absolute_path}")
+    # Verify folder exists
+    if not os.path.isdir(absolute_path):
+        raise HTTPException(
+            status_code=404, detail=f"Folder does not exist: {absolute_path}"
+        )
+
+    # Open the folder using subprocess
+    try:
+        # Windows-specific command
+        if os.name == "nt":
+            subprocess.Popen(f'explorer "{absolute_path}"', shell=True)
+        # macOS
+        elif os.name == "posix" and "darwin" in os.uname().sysname.lower():
+            subprocess.Popen(["open", absolute_path])
+        # Linux
+        else:
+            subprocess.Popen(["xdg-open", absolute_path])
+
+        return {"message": f"Folder '{absolute_path}' opened successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
