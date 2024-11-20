@@ -15,7 +15,6 @@ CLIENT_SECRETS_FILE = "./core/client_secrets_2.json"
 SCOPES = [
     "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/youtube.readonly",
-    "https://www.googleapis.com/auth/youtubepartner",
     "https://www.googleapis.com/auth/youtube.force-ssl",
 ]
 TOKEN_FILE = "token.json"
