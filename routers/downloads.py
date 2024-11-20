@@ -4,10 +4,9 @@ import time
 import subprocess
 
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from typing import List, Dict, Any, Generator
+from typing import List, Dict, Any, Generator, Optional
 from yt_dlp import YoutubeDL
 
 
@@ -15,9 +14,10 @@ from yt_dlp import YoutubeDL
 from ..core.download import (
     DownloadTask,
     DownloadStatus,
+    validate_video_id,
 )  # Example import
 
-from ..models.downloads import DownloadRequest
+from ..models.downloads import DownloadRequest, CancelParams
 
 # Router definition
 router = APIRouter(prefix="/downloads", tags=["Downloads"])
@@ -29,30 +29,36 @@ cache_expiration_time = 60 * 30  # Cache expiration time in seconds
 # semaphore = asyncio.Semaphore(5)  # Limit to 5 concurrent extractions
 
 
-@router.post("/download/")
+@router.get("/download/")
 async def initiate_download(
-    request: DownloadRequest,
     background_tasks: BackgroundTasks,
+    video_ids: List[str] = Depends(validate_video_id),
+    quality: str = Query(None, description="Video quality"),
+    video_format_id: str = Query(..., description="Format ID for video"),
+    audio_format_id: str = Query(..., description="Format ID for audio"),
+    output_filename: str = Query(..., description="Output filename"),
+    output_format: Optional[str] = Query("mp4", description="Output file format"),
+    output_dir: str = Query("./tmp", description="Output directory"),
 ):
     def cleanup_task(video_id: str):
         # Remove the task from download_tasks once it's complete or canceled
         download_tasks.pop(video_id, None)
 
-    for video_id in request.video_ids:
+    for video_id in video_ids:
         # Create and store a DownloadTask for each video with the cleanup callback
         task = DownloadTask(video_id, on_complete=cleanup_task)
         download_tasks[video_id] = task
         # Schedule the background download task
         background_tasks.add_task(
             task.download,
-            request.quality,
-            request.save_folder,
-            request.video_title,
-            request.video_format_id,
-            request.audio_format_id,
+            quality,
+            video_format_id,
+            audio_format_id,
+            output_filename,
+            output_format,
         )
 
-    return {"message": "Download started", "video_ids": request.video_ids}
+    return {"message": "Download started", "video_ids": video_ids}
 
 
 @router.get("/progress/{video_id}")
@@ -72,9 +78,19 @@ async def stream_progress(video_id: str) -> StreamingResponse:
                 "downloaded_bytes": task.downloaded_bytes,
                 "total_bytes": task.total_bytes,
                 "status": task.status.value,
+                "progress": (
+                    task.downloaded_bytes / task.total_bytes * 100
+                    if task.total_bytes
+                    else 0
+                ),
+                "eta": task.eta if task.eta else 0,
+                "elapsed": task.elapsed_time if task.elapsed_time else 0,
+                "speed": task.speed if task.speed else 0,
+                # "fragment_count": task.fragment_count if task.fragment_count else 0,
+                # "fragment_index": task.fragment_index if task.fragment_index else 0,
             }
             yield f"data: {json.dumps(progress_data)}\n\n"
-            await asyncio.sleep(1)
+            await asyncio.sleep(1)  # Try to stress test this and increase if needed
 
         # Final update after download is complete
         progress_data = {
@@ -86,10 +102,6 @@ async def stream_progress(video_id: str) -> StreamingResponse:
         yield f"data: {json.dumps(progress_data)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
-class CancelParams(BaseModel):
-    video_ids: List[str]
 
 
 @router.post("/cancel_downloads/")
@@ -171,16 +183,6 @@ async def get_video_formats(video_id: str):
 @router.get("/formats/{video_id}")
 async def get_formats(video_id: str):
     return await get_video_formats(video_id)
-
-
-# Request body model
-class DownloadRequest(BaseModel):
-    video_url: str
-    video_format_id: str
-    audio_format_id: str
-    output_filename: str = "output"
-    output_format: str = "mp4"
-    output_dir: str = "./tmp"
 
 
 @router.post("/download/sub")

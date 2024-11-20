@@ -236,7 +236,7 @@ async def fetch_home_feed(
 @app.get("/collect/video")
 async def get_video_details(
     video_id: str = Query(..., description="The ID of the YouTube video"),
-    part: str = "snippet,statistics,contentDetails,fileDetails",
+    part: str = "snippet",
     credentials=Depends(get_credentials),
 ):
     """
