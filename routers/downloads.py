@@ -34,6 +34,7 @@ cache_expiration_time = 60 * 30  # Cache expiration time in seconds
 async def initiate_download(
     background_tasks: BackgroundTasks,
     video_ids: List[str] = Depends(validate_video_id),
+    channel_title: str = Query(None, description="Channel title"),
     quality: str = Query(None, description="Video quality"),
     video_format_id: str = Query(..., description="Format ID for video"),
     audio_format_id: str = Query(..., description="Format ID for audio"),
@@ -52,6 +53,7 @@ async def initiate_download(
         # Schedule the background download task
         background_tasks.add_task(
             task.download,
+            channel_title,
             quality,
             video_format_id,
             audio_format_id,
@@ -87,8 +89,7 @@ async def stream_progress(video_id: str) -> StreamingResponse:
                 "eta": task.eta if task.eta else 0,
                 "elapsed": task.elapsed_time if task.elapsed_time else 0,
                 "speed": task.speed if task.speed else 0,
-                # "fragment_count": task.fragment_count if task.fragment_count else 0,
-                # "fragment_index": task.fragment_index if task.fragment_index else 0,
+                "stage": task.stage,  # Include stage information
             }
             yield f"data: {json.dumps(progress_data)}\n\n"
             await asyncio.sleep(1)  # Try to stress test this and increase if needed
@@ -99,6 +100,7 @@ async def stream_progress(video_id: str) -> StreamingResponse:
             "downloaded_bytes": task.downloaded_bytes,
             "total_bytes": task.total_bytes,
             "status": task.status.value,
+            "stage": task.stage,
         }
         yield f"data: {json.dumps(progress_data)}\n\n"
 

@@ -28,18 +28,18 @@ class DownloadTask:
     def __init__(self, video_id: str, on_complete: Optional[Callable] = None):
         self.video_id = video_id
         self.video_title = None
+        self.channel_title = None
         self.output_dir = "./tmp"
         self.downloaded_bytes = 0
         self.total_bytes = None
         self.elapsed_time = 0
         self.eta = None
         self.speed = 0
-        # self.fragment_index = None
-        # self.fragment_count = None
         self.status = DownloadStatus.QUEUED
+        self.stage = "queued"  # New field to track the current stage
         self._cancel_event = asyncio.Event()
-        self._task: Optional[asyncio.Task] = None  # To store the async task
-        self.on_complete = on_complete  # Callback for cleanup
+        self._task: Optional[asyncio.Task] = None
+        self.on_complete = on_complete
 
     def progress_hook(self, d):
         if self._cancel_event.is_set():
@@ -47,20 +47,42 @@ class DownloadTask:
 
         if d["status"] == "downloading":
             self.downloaded_bytes = d["downloaded_bytes"]
-            self.total_bytes = d["total_bytes"]
+            self.total_bytes = d.get("total_bytes", self.total_bytes)
             self.elapsed_time = d["elapsed"]
             self.eta = d["eta"]
             self.speed = d["speed"]
-            # self.fragment_count = d["fragment_count"]
-            # self.fragment_index = d["fragment_index"]
+
+            # Update stage based on the fragment count or downloaded bytes
+            if "fragments" in d:
+                fragment_index = d.get("fragment_index", 0)
+                fragment_count = d["fragments"]
+                self.stage = f"downloading {'video' if 'video' in d['info_dict']['ext'] else 'audio'} (fragment {fragment_index}/{fragment_count})"
+            elif self.stage != "merging":
+                self.stage = f"downloading {'audio' if d['info_dict']['ext'] == 'm4a' else 'video'}"
+
             self.status = DownloadStatus.DOWNLOADING
+
         elif d["status"] == "finished":
-            self.status = DownloadStatus.COMPLETE
+            self.stage = "download complete"
+            self.status = DownloadStatus.DOWNLOADING  # Still downloading if merging
+
         elif d["status"] == "error":
             self.status = DownloadStatus.ERROR
 
+    def postprocessor_hook(self, pp_info):
+        if self._cancel_event.is_set():
+            raise asyncio.CancelledError("Download cancelled by user.")
+
+        # Update stage based on postprocessing info
+        if pp_info["status"] == "started":
+            self.stage = f"merging: {pp_info['postprocessor']}"
+        elif pp_info["status"] == "finished":
+            self.stage = "merge complete"
+            self.status = DownloadStatus.COMPLETE
+
     async def download(
         self,
+        channel_title: str | None = None,
         quality: str | None = None,
         video_format_id: str | None = None,
         audio_format_id: str | None = None,
@@ -72,9 +94,7 @@ class DownloadTask:
             self.status = DownloadStatus.QUEUED
 
         self.output_dir = output_dir
-        print("Downloading video:", self.video_id)
-        print("Quality:", quality)
-        print("Format IDs:", video_format_id, audio_format_id)
+
         # Determine the format string
         if video_format_id and audio_format_id:
             format_str = f"{video_format_id}+{audio_format_id}"
@@ -85,8 +105,9 @@ class DownloadTask:
 
         ydl_opts = {
             "format": format_str,
-            "outtmpl": f"{output_dir}/{output_filename} - {self.video_id}.mp4",
+            "outtmpl": f"{output_dir}/{output_filename} - {channel_title} - {self.video_id}.mp4",
             "progress_hooks": [self.progress_hook],
+            "postprocessor_hooks": [self.postprocessor_hook],
             "merge_output_format": "mp4",
         }
 
@@ -108,7 +129,7 @@ class DownloadTask:
     def cancel(self):
         """Cancels the download by setting the event and cancelling the task."""
         if self._task and not self._task.done():
-            self._task.cancel()  # This will trigger asyncio.CancelledError
+            self._task.cancel()
             self.status = DownloadStatus.CANCELED
             self._cancel_event.set()
 
