@@ -4,7 +4,7 @@ from typing import Annotated
 from fastapi import FastAPI, Query, Depends
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import downloads, search, channels, ouauth2, playlists
+from .routers import downloads, search, channels, ouauth2, playlists, comments
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -14,7 +14,7 @@ from .core.tools import (
     get_subscriptions_videos,
 )
 
-from .dependencies.dependency import get_credentials, get_youtube
+from .dependencies.dependency import get_credentials
 
 app = FastAPI()
 app.include_router(downloads.router)
@@ -22,6 +22,7 @@ app.include_router(search.router)
 app.include_router(channels.router)
 app.include_router(ouauth2.router)
 app.include_router(playlists.router)
+app.include_router(comments.router)
 
 load_dotenv()
 
@@ -74,48 +75,6 @@ async def collect_subscriptions(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/collect/comments/")
-async def get_video_comments(
-    video_id: str,
-    max_results: int = Query(10, ge=1, le=100),
-    page_token: str | None = None,
-    youtube=Depends(get_youtube),
-):
-    """
-    Get comments for a specific YouTube video.
-
-    Args:
-        video_id (str): The ID of the YouTube video.
-        max_results (int): The maximum number of comments to retrieve.
-        page_token (str): Token for pagination (optional).
-
-    Returns:
-        dict: A dictionary with the comments and pagination info.
-    """
-    try:
-        # Make the API request to get comments
-        request_params = {
-            "part": "snippet",
-            "videoId": video_id,
-            "maxResults": max_results,
-            "textFormat": "plainText",
-        }
-        if page_token:  # Add pageToken only if it's not None
-            request_params["pageToken"] = page_token
-
-        request = youtube.commentThreads().list(**request_params)
-        response = request.execute()
-
-        # Only return necessary data
-        return {
-            "items": response.get("items", []),
-            "nextPageToken": response.get("nextPageToken"),
-        }
-
-    except HttpError as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
 
 @app.get("/subs/videos/")
