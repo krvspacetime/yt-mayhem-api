@@ -1,8 +1,11 @@
+from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import HTTPException
 from googleapiclient.errors import HttpError
+from googleapiclient.discovery import build
 
-from ..dependencies.dependency import get_youtube
+from ..models.comments import AddCommentRequest
+from ..dependencies.dependency import get_youtube, get_credentials
 
 router = APIRouter(prefix="/comments", tags=["Comments"])
 
@@ -47,3 +50,44 @@ async def get_video_comments(
 
     except HttpError as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
+
+
+@router.post("/add")
+async def add_comment(
+    request: Annotated[AddCommentRequest, Depends()],
+    credentials=Depends(get_credentials),
+):
+    try:
+        # Define the body for the commentThreads.insert method
+        body = {
+            "snippet": {
+                "videoId": request.video_id,
+                "topLevelComment": {
+                    "snippet": {
+                        "textOriginal": request.comment_text,
+                    }
+                },
+            }
+        }
+
+        # Build the YouTube API client
+        youtube = build("youtube", "v3", credentials=credentials)
+
+        # Call the YouTube API to insert the comment
+        response = youtube.commentThreads().insert(part="snippet", body=body).execute()
+
+        return {
+            "message": "Comment added successfully.",
+            "comment_id": response["id"],
+            "comment_details": response["snippet"]["topLevelComment"]["snippet"],
+        }
+
+    except HttpError as e:
+        raise HTTPException(
+            status_code=e.resp.status,
+            detail=f"Failed to add comment: {e.error_details}",
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {str(e)}"
+        )
