@@ -1,33 +1,28 @@
-import re
 import asyncio
+import logging
 
-from typing import List, Optional, Callable
-from fastapi import HTTPException, Query
+from typing import Optional, Callable
 from yt_dlp import YoutubeDL
 
-from enum import Enum
+from sqlalchemy.orm import Session
+from ..db.db import Download
+from ..models.downloads import DownloadStatus
 
 
-class DownloadStatus(Enum):
-    QUEUED = "queued"
-    DOWNLOADING = "downloading"
-    COMPLETE = "complete!"
-    CANCELED = "canceled"
-    ERROR = "error"
-
-
-# Define the request model for download parameters
-# class DownloadRequest(BaseModel):
-#     video_ids: List[str]
-#     video_title: str
-#     quality: str
-#     save_folder: str
+logging.basicConfig()
+logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
 
 
 class DownloadTask:
-    def __init__(self, video_id: str, on_complete: Optional[Callable] = None):
+    def __init__(
+        self,
+        video_id: str,
+        video_title: str = None,
+        db: Session = None,
+        on_complete: Optional[Callable] = None,
+    ):
         self.video_id = video_id
-        self.video_title = None
+        self.video_title = video_title
         self.channel_title = None
         self.output_dir = "./tmp"
         self.downloaded_bytes = 0
@@ -40,6 +35,8 @@ class DownloadTask:
         self._cancel_event = asyncio.Event()
         self._task: Optional[asyncio.Task] = None
         self.on_complete = on_complete
+        self.db = db
+        self.download_record = None
 
     def progress_hook(self, d):
         if self._cancel_event.is_set():
@@ -53,14 +50,19 @@ class DownloadTask:
             self.speed = d["speed"]
 
             # Update stage based on the fragment count or downloaded bytes
-            if "fragments" in d:
-                fragment_index = d.get("fragment_index", 0)
-                fragment_count = d["fragments"]
-                self.stage = f"downloading {'video' if 'video' in d['info_dict']['ext'] else 'audio'} (fragment {fragment_index}/{fragment_count})"
-            elif self.stage != "merging":
-                self.stage = f"downloading {'audio' if d['info_dict']['ext'] == 'm4a' else 'video'}"
+            # if "fragments" in d:
+            #     fragment_index = d.get("fragment_index", 0)
+            #     fragment_count = d["fragments"]
+            #     self.stage = f"downloading {'video' if 'video' in d['info_dict']['ext'] else 'audio'} (fragment {fragment_index}/{fragment_count})"
+            # elif self.stage != "merging":
+            #     self.stage = f"downloading {'audio' if d['info_dict']['ext'] == 'm4a' else 'video'}"
 
             self.status = DownloadStatus.DOWNLOADING
+
+            # Update the stage dynamically
+            self.stage = (
+                f"downloading {'audio' if d['info_dict']['ext'] == 'm4a' else 'video'}"
+            )
 
         elif d["status"] == "finished":
             self.stage = "download complete"
@@ -68,6 +70,10 @@ class DownloadTask:
 
         elif d["status"] == "error":
             self.status = DownloadStatus.ERROR
+
+        print(
+            f"Progress Update: {self.status}, {self.stage}, {self.downloaded_bytes}/{self.total_bytes}"
+        )
 
     def postprocessor_hook(self, pp_info):
         if self._cancel_event.is_set():
@@ -78,7 +84,34 @@ class DownloadTask:
             self.stage = f"merging: {pp_info['postprocessor']}"
         elif pp_info["status"] == "finished":
             self.stage = "merge complete"
-            self.status = DownloadStatus.COMPLETE
+            self.status = DownloadStatus.MERGED
+
+    def _create_db_record(self):
+        """Actual database record creation logic (blocking)."""
+        try:
+            record = Download(
+                video_id=self.video_id,
+                title=self.video_title,
+                output_dir=self.output_dir,
+                status=self.status,
+                downloaded_bytes=self.downloaded_bytes,
+                total_bytes=self.total_bytes,
+                stage=self.stage,
+            )
+            self.db.add(record)
+            self.db.commit()
+            logging.debug("Database record created successfully")
+            return record
+        except Exception as e:
+            logging.error(f"Error creating database record: {e}")
+            self.db.rollback()
+            raise
+
+    async def create_db_record(self):
+        """Create the record in the database without blocking the event loop."""
+        return await asyncio.to_thread(
+            self._create_db_record
+        )  # Run the blocking DB operation in a separate thread
 
     async def download(
         self,
@@ -104,12 +137,20 @@ class DownloadTask:
             raise ValueError("Either quality or explicit format IDs must be provided.")
 
         ydl_opts = {
+            "quiet": True,
             "format": format_str,
             "outtmpl": f"{output_dir}/{output_filename} - {channel_title} - {self.video_id}.mp4",
             "progress_hooks": [self.progress_hook],
             "postprocessor_hooks": [self.postprocessor_hook],
             "merge_output_format": "mp4",
         }
+
+        # Create the download record in the database
+        self.download_record = (
+            await self.create_db_record()
+        )  # Ensuxre record is created
+
+        asyncio.create_task(self.sync_to_db())
 
         # Create a new task to run the download
         self._task = asyncio.create_task(self._run_download(ydl_opts))
@@ -133,33 +174,26 @@ class DownloadTask:
             self.status = DownloadStatus.CANCELED
             self._cancel_event.set()
 
-
-# Regular expressions for video ID and YouTube URL
-YOUTUBE_VIDEO_ID_REGEX = r"^[a-zA-Z0-9_-]{11}$"
-YOUTUBE_URL_REGEX = (
-    r"^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/(watch\?v=)?[a-zA-Z0-9_-]{11}$"
-)
-
-
-def validate_video_id(
-    video_ids: List[str] = Query(..., description="List of video IDs or URLs")
-) -> List[str]:
-    """Validates a list of YouTube video IDs or URLs."""
-    validated_ids = []
-    for video_id in video_ids:
-        if re.match(YOUTUBE_VIDEO_ID_REGEX, video_id):
-            validated_ids.append(video_id)  # Valid video ID
-        elif re.match(YOUTUBE_URL_REGEX, video_id):
-            # Extract video ID from URL if it's a valid YouTube URL
-            video_id_match = re.search(r"[a-zA-Z0-9_-]{11}$", video_id)
-            if video_id_match:
-                validated_ids.append(video_id_match.group(0))
-            else:
-                raise HTTPException(
-                    status_code=400, detail=f"Invalid YouTube URL format: {video_id}"
+    async def sync_to_db(self):
+        try:
+            while True:
+                if self.status in {
+                    DownloadStatus.ERROR,
+                    DownloadStatus.CANCELED,
+                    DownloadStatus.MERGED,
+                }:
+                    break
+                logging.debug(
+                    f"Syncing to DB: {self.status}, {self.downloaded_bytes}/{self.total_bytes}"
                 )
-        else:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid video ID or URL: {video_id}"
-            )
-    return validated_ids
+
+                def update_db():
+                    self.download_record.status = self.status
+                    self.download_record.stage = self.stage
+                    self.download_record.downloaded_bytes = self.downloaded_bytes
+                    self.db.commit()
+
+                await asyncio.to_thread(update_db)
+                await asyncio.sleep(1)
+        except Exception as e:
+            logging.error(f"Error syncing to DB: {e}")

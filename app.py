@@ -1,7 +1,7 @@
 from dotenv import load_dotenv
 
 from typing import Annotated
-from fastapi import FastAPI, Query, Depends
+from fastapi import FastAPI, Query, Depends, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .routers import downloads, search, channels, ouauth2, playlists, comments
@@ -41,6 +41,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    body = await request.body()
+    print("Incoming request body:", body.decode("utf-8"))
+    response = await call_next(request)
+    return response
 
 
 # Endpoint to get subscribed channels

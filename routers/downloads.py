@@ -9,16 +9,18 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
 from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any, Generator, Optional
 from yt_dlp import YoutubeDL
+from sqlalchemy.orm import Session
 
 
 # Replace these with the imports and definitions of your custom classes and enums
 from ..core.download import (
     DownloadTask,
     DownloadStatus,
-    validate_video_id,
 )  # Example import
 
+from ..dependencies.dependency import validate_video_id
 from ..models.downloads import DownloadRequest, CancelParams
+from ..db.db import get_db
 
 # Router definition
 router = APIRouter(prefix="/downloads", tags=["Downloads"])
@@ -41,6 +43,7 @@ async def initiate_download(
     output_filename: str = Query(..., description="Output filename"),
     output_format: Optional[str] = Query("mp4", description="Output file format"),
     output_dir: str = Query("./tmp", description="Output directory"),
+    db: Session = Depends(get_db),
 ):
     def cleanup_task(video_id: str):
         # Remove the task from download_tasks once it's complete or canceled
@@ -48,7 +51,14 @@ async def initiate_download(
 
     for video_id in video_ids:
         # Create and store a DownloadTask for each video with the cleanup callback
-        task = DownloadTask(video_id, on_complete=cleanup_task)
+        task = DownloadTask(
+            video_id=video_id,
+            video_title=output_filename,
+            on_complete=cleanup_task,
+            db=db,
+        )
+
+        # task = DownloadTask(video_id, on_complete=cleanup_task, db=db)
         download_tasks[video_id] = task
         # Schedule the background download task
         background_tasks.add_task(
@@ -174,8 +184,8 @@ async def get_video_formats(video_id: str):
     # Check cache first
     if video_id in video_formats_cache:
         cache_entry = video_formats_cache[video_id]
-        if current_time - cache_entry["timestamp"] < cache_expiration_time:
-            return cache_entry["data"]
+        # if current_time - cache_entry["timestamp"] < cache_expiration_time:
+        return cache_entry["data"]
 
     # Fetch data if not in cache or expired
     data = await fetch_video_formats(video_id)
@@ -219,11 +229,6 @@ async def download_video(request: DownloadRequest):
         raise HTTPException(
             status_code=500, detail=f"Error downloading video: {e.stderr}"
         )
-
-
-import os
-import subprocess
-from fastapi import HTTPException
 
 
 @router.get("/open_folder/{video_id}")

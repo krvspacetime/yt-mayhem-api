@@ -54,7 +54,7 @@ async def get_video_comments(
 
 @router.post("/add")
 async def add_comment(
-    request: Annotated[AddCommentRequest, Depends()],
+    request: AddCommentRequest,
     credentials=Depends(get_credentials),
 ):
     try:
