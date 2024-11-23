@@ -1,0 +1,8 @@
+fastapi==0.115.5
+google_api_python_client==2.149.0
+google_auth_oauthlib==1.2.1
+protobuf==5.28.3
+pydantic==2.10.1
+python-dotenv==1.0.1
+SQLAlchemy==2.0.32
+yt_dlp==2024.11.18

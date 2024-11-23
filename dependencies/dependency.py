@@ -30,24 +30,23 @@ YOUTUBE_URL_REGEX = (
 
 
 def validate_video_id(
-    video_ids: List[str] = Query(..., description="List of video IDs or URLs")
-) -> List[str]:
+    video_id: str = Query(..., description="List of video IDs or URLs")
+) -> str:
     """Validates a list of YouTube video IDs or URLs."""
-    validated_ids = []
-    for video_id in video_ids:
-        if re.match(YOUTUBE_VIDEO_ID_REGEX, video_id):
-            validated_ids.append(video_id)  # Valid video ID
-        elif re.match(YOUTUBE_URL_REGEX, video_id):
-            # Extract video ID from URL if it's a valid YouTube URL
-            video_id_match = re.search(r"[a-zA-Z0-9_-]{11}$", video_id)
-            if video_id_match:
-                validated_ids.append(video_id_match.group(0))
-            else:
-                raise HTTPException(
-                    status_code=400, detail=f"Invalid YouTube URL format: {video_id}"
-                )
+    validated_id = None
+    if re.match(YOUTUBE_VIDEO_ID_REGEX, video_id):
+        validated_id = video_id  # Valid video ID
+    elif re.match(YOUTUBE_URL_REGEX, video_id):
+        # Extract video ID from URL if it's a valid YouTube URL
+        video_id_match = re.search(r"[a-zA-Z0-9_-]{11}$", video_id)
+        if video_id_match:
+            validated_id = video_id_match.group(0)
         else:
             raise HTTPException(
-                status_code=400, detail=f"Invalid video ID or URL: {video_id}"
+                status_code=400, detail=f"Invalid YouTube URL format: {video_id}"
             )
-    return validated_ids
+    else:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid video ID or URL: {video_id}"
+        )
+    return validated_id

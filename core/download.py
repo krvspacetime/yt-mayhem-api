@@ -5,6 +5,7 @@ from typing import Optional, Callable
 from yt_dlp import YoutubeDL
 
 from sqlalchemy.orm import Session
+
 from ..db.db import Download
 from ..models.downloads import DownloadStatus
 
@@ -50,12 +51,12 @@ class DownloadTask:
             self.speed = d["speed"]
 
             # Update stage based on the fragment count or downloaded bytes
-            # if "fragments" in d:
-            #     fragment_index = d.get("fragment_index", 0)
-            #     fragment_count = d["fragments"]
-            #     self.stage = f"downloading {'video' if 'video' in d['info_dict']['ext'] else 'audio'} (fragment {fragment_index}/{fragment_count})"
-            # elif self.stage != "merging":
-            #     self.stage = f"downloading {'audio' if d['info_dict']['ext'] == 'm4a' else 'video'}"
+            if "fragments" in d:
+                fragment_index = d.get("fragment_index", 0)
+                fragment_count = d["fragments"]
+                self.stage = f"downloading {'video' if 'video' in d['info_dict']['ext'] else 'audio'} (fragment {fragment_index}/{fragment_count})"
+            elif self.stage != "merging":
+                self.stage = f"downloading {'audio' if d['info_dict']['ext'] == 'm4a' else 'video'}"
 
             self.status = DownloadStatus.DOWNLOADING
 

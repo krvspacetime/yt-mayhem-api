@@ -1,5 +1,4 @@
 from dotenv import load_dotenv
-
 from typing import Annotated
 from fastapi import FastAPI, Query, Depends, Request
 from fastapi.exceptions import HTTPException
@@ -15,6 +14,9 @@ from .core.tools import (
 )
 
 from .dependencies.dependency import get_credentials
+from .models.history import HistoryRecordModel, create_history_record
+from .db.db import get_db, HistoryRecord
+from sqlalchemy.orm import Session
 
 app = FastAPI()
 app.include_router(downloads.router)
@@ -41,6 +43,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     try:
+#         with engine.connect() as connection:
+#             print(f"Database connection successful! {connection}")
+#     except Exception as e:
+#         print("Database connection failed!", e)
+#     yield
+#     # Clean up the ML models and release the resources
+#     print("Shutting down...")
+#     engine.dispose()
+
+
+# app = FastAPI(lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -122,3 +140,27 @@ async def get_video_details(
 
     except HttpError as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
+
+
+@app.post("/history/add/")
+def add_history_record(record: HistoryRecordModel, db: Session = Depends(get_db)):
+    try:
+        new_record = create_history_record(db, record)
+        return {
+            "message": "History record added successfully",
+            "record": new_record,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/history")
+async def get_history(db: Session = Depends(get_db)):
+    try:
+        history_records = db.query(HistoryRecord).all()
+        return {
+            "message": "History records fetched successfully",
+            "records": history_records,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

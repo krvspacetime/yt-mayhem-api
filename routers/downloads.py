@@ -35,7 +35,7 @@ cache_expiration_time = 60 * 30  # Cache expiration time in seconds
 @router.get("/download/")
 async def initiate_download(
     background_tasks: BackgroundTasks,
-    video_ids: List[str] = Depends(validate_video_id),
+    video_id: str = Depends(validate_video_id),
     channel_title: str = Query(None, description="Channel title"),
     quality: str = Query(None, description="Video quality"),
     video_format_id: str = Query(..., description="Format ID for video"),
@@ -49,29 +49,28 @@ async def initiate_download(
         # Remove the task from download_tasks once it's complete or canceled
         download_tasks.pop(video_id, None)
 
-    for video_id in video_ids:
-        # Create and store a DownloadTask for each video with the cleanup callback
-        task = DownloadTask(
-            video_id=video_id,
-            video_title=output_filename,
-            on_complete=cleanup_task,
-            db=db,
-        )
+    # Create and store a DownloadTask for each video with the cleanup callback
+    task = DownloadTask(
+        video_id=video_id,
+        video_title=output_filename,
+        on_complete=cleanup_task,
+        db=db,
+    )
 
-        # task = DownloadTask(video_id, on_complete=cleanup_task, db=db)
-        download_tasks[video_id] = task
-        # Schedule the background download task
-        background_tasks.add_task(
-            task.download,
-            channel_title,
-            quality,
-            video_format_id,
-            audio_format_id,
-            output_filename,
-            output_format,
-        )
+    # task = DownloadTask(video_id, on_complete=cleanup_task, db=db)
+    download_tasks[video_id] = task
+    # Schedule the background download task
+    background_tasks.add_task(
+        task.download,
+        channel_title,
+        quality,
+        video_format_id,
+        audio_format_id,
+        output_filename,
+        output_format,
+    )
 
-    return {"message": "Download started", "video_ids": video_ids}
+    return {"message": "Download started", "video_ids": video_id}
 
 
 @router.get("/progress/{video_id}")

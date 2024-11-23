@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, String, Integer, Enum
+from sqlalchemy import create_engine, Column, String, Integer, Enum, DateTime
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from ..models.downloads import DownloadStatus
@@ -20,8 +20,17 @@ class Download(Base):
     stage = Column(String, nullable=True)
 
 
+class HistoryRecord(Base):
+    __tablename__ = "history"
+    id = Column(Integer, primary_key=True)
+    video_id = Column(String, nullable=False)
+    video_title = Column(String, nullable=False)
+    channel_title = Column(String, nullable=False)
+    date = Column(DateTime, nullable=False)
+
+
 # SQLite engine and session
-DATABASE_URL = "sqlite:///./downloads.db"
+DATABASE_URL = "sqlite:///./sqlite.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
@@ -29,8 +38,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base.metadata.create_all(bind=engine)
 
 
-# Database session context manager
-# @contextmanager
+# Db dependency
 def get_db():
     db = SessionLocal()
     try:
