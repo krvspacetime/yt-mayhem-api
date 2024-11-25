@@ -1,14 +1,20 @@
 from googleapiclient.discovery import build
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+
 from ..models.search import YouTubeSearchParams
 from ..dependencies.dependency import get_credentials
+from ..db.db import get_db, SearchRecord, create_search_record
+
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
 
 @router.get("/")
-def youtube_search(
-    params: YouTubeSearchParams = Depends(), credentials=Depends(get_credentials)
+async def youtube_search(
+    params: YouTubeSearchParams = Depends(),
+    credentials=Depends(get_credentials),
 ):
     youtube = build("youtube", "v3", credentials=credentials)
     request = youtube.search().list(
@@ -39,3 +45,29 @@ def youtube_search(
         "totalResults": response["pageInfo"]["totalResults"],
         "resultsPerPage": response["pageInfo"]["resultsPerPage"],
     }
+
+
+class SearchRecordAddRequest(BaseModel):
+    query: str
+
+
+@router.post("/add")
+def add_search_record(request: SearchRecordAddRequest, db: Session = Depends(get_db)):
+    try:
+        new_record = create_search_record(db, SearchRecord(query=request.query))
+        return {
+            "message": "Search record added successfully",
+            "record": new_record,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/delete")
+def delete_search_record(q: str, db: Session = Depends(get_db)):
+    try:
+        db.query(SearchRecord).filter(SearchRecord.query == q).delete()
+        db.commit()
+        return {"message": "Search record deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

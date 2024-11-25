@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import FastAPI, Query, Depends, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import downloads, search, channels, ouauth2, playlists, comments
+from .routers import downloads, search, channels, ouauth2, playlists, comments, history
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -14,9 +14,6 @@ from .core.tools import (
 )
 
 from .dependencies.dependency import get_credentials
-from .models.history import HistoryRecordModel, create_history_record
-from .db.db import get_db, HistoryRecord
-from sqlalchemy.orm import Session
 
 app = FastAPI()
 app.include_router(downloads.router)
@@ -25,6 +22,7 @@ app.include_router(channels.router)
 app.include_router(ouauth2.router)
 app.include_router(playlists.router)
 app.include_router(comments.router)
+app.include_router(history.router)
 
 load_dotenv()
 
@@ -89,16 +87,30 @@ async def collect_channels(
 
 
 @app.get("/collect/subscriptions/")
-async def collect_subscriptions(
+async def collect_subs(
+    max_results: int = 10,
+    page_token: str | None = None,
     credentials=Depends(get_credentials),
-    max_results=Annotated[int, Query(50, ge=1, le=2000)],
 ):
+    """
+    Fetches the user's YouTube home feed.
+    """
+    request_params = {
+        "part": "snippet",
+        "mine": True,
+        "maxResults": max_results,
+    }
+
+    if page_token:
+        request_params["pageToken"] = page_token
     try:
-        response = get_subscriptions(credentials, max_results)
-
-        # Process and return the subscriptions
-        return {"subscriptions": response.get("items", [])}
-
+        youtube = build("youtube", "v3", credentials=credentials)
+        request = youtube.subscriptions().list(**request_params)
+        response = request.execute()
+        return {
+            "subscriptions": response.get("items", []),
+            "nextPageToken": response.get("nextPageToken", None),
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -140,27 +152,3 @@ async def get_video_details(
 
     except HttpError as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
-
-
-@app.post("/history/add/")
-def add_history_record(record: HistoryRecordModel, db: Session = Depends(get_db)):
-    try:
-        new_record = create_history_record(db, record)
-        return {
-            "message": "History record added successfully",
-            "record": new_record,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@app.get("/history")
-async def get_history(db: Session = Depends(get_db)):
-    try:
-        history_records = db.query(HistoryRecord).all()
-        return {
-            "message": "History records fetched successfully",
-            "records": history_records,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))

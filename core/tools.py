@@ -1,8 +1,4 @@
-import pickle
-import os
-from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
 
 # Path to your client_secrets.json file
@@ -15,29 +11,6 @@ SCOPES = [
     "https://www.googleapis.com/auth/youtubepartner",
     "https://www.googleapis.com/auth/youtube.force-ssl",
 ]
-TOKEN_FILE = "token.pickle"
-
-
-def authenticate_youtube():
-    credentials = None
-    if os.path.exists(TOKEN_FILE):
-        with open(TOKEN_FILE, "rb") as token:
-            credentials = pickle.load(token)
-        print("Loaded credentials from token file.")
-
-    if not credentials or not credentials.valid:
-        flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-        # credentials = flow.run_local_server(port=8080, prompt="consent")
-        credentials = flow.run_local_server(
-            port=8080, host="localhost", prompt="consent"
-        )
-        print("New credentials obtained.")
-
-        with open(TOKEN_FILE, "wb") as token:
-            pickle.dump(credentials, token)
-            print("Credentials saved to token file.")
-
-    return credentials
 
 
 def get_playlist(credentials, playlist_id, max_results=50):

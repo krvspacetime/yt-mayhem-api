@@ -1,13 +1,21 @@
-from typing import Annotated
+import os
+import google.generativeai as genai
+import pprint
+
+from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import HTTPException
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 
-from ..models.comments import AddCommentRequest
+from ..models.comments import AddCommentRequest, AICommentRequest
 from ..dependencies.dependency import get_youtube, get_credentials
 
 router = APIRouter(prefix="/comments", tags=["Comments"])
+
+load_dotenv()
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 
 @router.get("/")
@@ -91,3 +99,30 @@ async def add_comment(
         raise HTTPException(
             status_code=500, detail=f"An unexpected error occurred: {str(e)}"
         )
+
+
+@router.get("/ai")
+async def generate_comment(request: AICommentRequest = Depends()):
+    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+
+    model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+    response = model.generate_content(
+        f"Please improve this comment by making it more {request.category}: {request.comment_text}"
+    )
+    text_response = response.text.split("\n")
+
+    # Clean and categorize comments
+    categorized_comments = {}
+    current_category = None
+    for line in text_response:
+        line = line.strip()  # Remove leading/trailing whitespace
+        if line.startswith("**") and line.endswith("**"):  # Detect category headers
+            current_category = line.strip("**")
+            categorized_comments[current_category] = []
+        elif line and current_category:  # Add comments to the current category
+            categorized_comments[current_category].append(line)
+
+    return {
+        "message": "Comment generated successfully.",
+        "comments": categorized_comments,
+    }

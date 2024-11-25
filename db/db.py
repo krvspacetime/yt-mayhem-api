@@ -1,6 +1,8 @@
 from sqlalchemy import create_engine, Column, String, Integer, Enum, DateTime
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
+from datetime import datetime
+
 from ..models.downloads import DownloadStatus
 
 Base = declarative_base()
@@ -29,6 +31,13 @@ class HistoryRecord(Base):
     date = Column(DateTime, nullable=False)
 
 
+class SearchRecord(Base):
+    __tablename__ = "search"
+    id = Column(Integer, primary_key=True)
+    query = Column(String, nullable=False)
+    date = Column(DateTime, nullable=False)
+
+
 # SQLite engine and session
 DATABASE_URL = "sqlite:///./sqlite.db"
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
@@ -45,3 +54,14 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def create_search_record(db: Session, record: SearchRecord):
+    db_record = SearchRecord(
+        query=record.query,
+        date=datetime.now(),
+    )
+    db.add(db_record)
+    db.commit()
+    db.refresh(db_record)
+    return db_record
