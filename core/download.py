@@ -183,6 +183,7 @@ class DownloadTask:
                     DownloadStatus.CANCELED,
                     DownloadStatus.MERGED,
                 }:
+                    self.db.commit()
                     break
                 logging.debug(
                     f"Syncing to DB: {self.status}, {self.downloaded_bytes}/{self.total_bytes}"
@@ -192,7 +193,6 @@ class DownloadTask:
                     self.download_record.status = self.status
                     self.download_record.stage = self.stage
                     self.download_record.downloaded_bytes = self.downloaded_bytes
-                    self.db.commit()
 
                 await asyncio.to_thread(update_db)
                 await asyncio.sleep(1)
