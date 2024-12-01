@@ -44,3 +44,11 @@ class DownloadRead(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class DownloadListRequest(BaseModel):
+    video_id: str | None = None
+    video_title: str | None = None
+    size: int | None = None
+    stage: str | None = None
+    quality: str | None = None

@@ -25,6 +25,7 @@ class DownloadTask:
         self.video_id = video_id
         self.video_title = video_title
         self.channel_title = None
+        self.quality = None
         self.output_dir = "./tmp"
         self.downloaded_bytes = 0
         self.total_bytes = None
@@ -132,8 +133,10 @@ class DownloadTask:
         # Determine the format string
         if video_format_id and audio_format_id:
             format_str = f"{video_format_id}+{audio_format_id}"
+            self.quality = format_str
         elif quality:
             format_str = quality
+            self.quality = quality
         else:
             raise ValueError("Either quality or explicit format IDs must be provided.")
 
@@ -183,7 +186,6 @@ class DownloadTask:
                     DownloadStatus.CANCELED,
                     DownloadStatus.MERGED,
                 }:
-                    self.db.commit()
                     break
                 logging.debug(
                     f"Syncing to DB: {self.status}, {self.downloaded_bytes}/{self.total_bytes}"
@@ -198,3 +200,14 @@ class DownloadTask:
                 await asyncio.sleep(1)
         except Exception as e:
             logging.error(f"Error syncing to DB: {e}")
+            self.status = DownloadStatus.ERROR
+        finally:
+
+            def update_db():
+                self.download_record.status = self.status
+                self.download_record.stage = self.stage
+                self.download_record.downloaded_bytes = self.downloaded_bytes
+                self.download_record.quality = self.quality
+                self.db.commit()
+
+            await asyncio.to_thread(update_db)

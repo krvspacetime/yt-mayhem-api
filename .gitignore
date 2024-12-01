@@ -24,3 +24,6 @@ docs.zip
 archive.zip
 .pickle
 token.json
+.db
+token.json
+sqlite.db

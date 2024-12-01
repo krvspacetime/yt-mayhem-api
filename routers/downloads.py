@@ -7,10 +7,11 @@ import subprocess
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Depends
 from fastapi.responses import StreamingResponse
-from typing import List, Dict, Any, Generator, Optional
+from typing import Dict, Any, AsyncGenerator, Optional
 from yt_dlp import YoutubeDL
 from sqlalchemy.orm import Session
 
+from ..db.db import Download
 
 # Replace these with the imports and definitions of your custom classes and enums
 from ..core.download import (
@@ -19,7 +20,7 @@ from ..core.download import (
 )  # Example import
 
 from ..dependencies.dependency import validate_video_id
-from ..models.downloads import DownloadRequest, CancelParams
+from ..models.downloads import DownloadRequest, CancelParams, DownloadListRequest
 from ..db.db import get_db
 
 # Router definition
@@ -83,7 +84,7 @@ async def stream_progress(video_id: str) -> StreamingResponse:
 
     task = download_tasks[video_id]
 
-    async def event_generator() -> Generator[str, None, None]:
+    async def event_generator() -> AsyncGenerator[str, None]:
         while task.status not in {DownloadStatus.COMPLETE, DownloadStatus.CANCELED}:
             progress_data = {
                 "video_id": task.video_id,
@@ -121,6 +122,7 @@ async def cancel_downloads(params: CancelParams):
     for video_id in params.video_ids:
         if video_id in download_tasks:
             download_tasks[video_id].cancel()
+            download_tasks[video_id].status = "canceled"
             # Immediately remove from download_tasks after cancellation
             download_tasks.pop(video_id, None)
     return {
@@ -231,44 +233,146 @@ async def download_video(request: DownloadRequest):
 
 
 @router.get("/open_folder/{video_id}")
-async def open_folder(video_id: str):
+async def open_folder(video_id: str, db: Session = Depends(get_db)):
     # Ensure the video ID exists in the task manager
-    if video_id not in download_tasks:
+    download_item = db.query(Download).filter(Download.video_id == video_id).first()
+    if download_item:
         raise HTTPException(
             status_code=404, detail=f"No download task found for video ID: {video_id}"
         )
 
-    # Get the output directory from the task
-    task = download_tasks[video_id]
-    folder_path = task.output_dir
-    print(f"Folder: {folder_path}")
+    # Get the output directory and filename from the task
+    folder_path = download_item[0].output_dir
+    filename = download_item[0].title  # This should be the full filename with extension
 
     if not folder_path:
         raise HTTPException(
             status_code=400, detail="Output directory not set for this download task."
         )
 
-    # Resolve absolute path
-    absolute_path = os.path.abspath(folder_path)
-    print(f"Abs path: {absolute_path}")
-    # Verify folder exists
-    if not os.path.isdir(absolute_path):
+    # Resolve absolute paths
+    absolute_folder = os.path.abspath(folder_path)
+    absolute_file = os.path.join(absolute_folder, filename)
+
+    # Verify folder and file exist
+    if not os.path.isdir(absolute_folder):
         raise HTTPException(
-            status_code=404, detail=f"Folder does not exist: {absolute_path}"
+            status_code=404, detail=f"Folder does not exist: {absolute_folder}"
+        )
+    if not os.path.isfile(absolute_file):
+        raise HTTPException(
+            status_code=404, detail=f"File does not exist: {absolute_file}"
         )
 
-    # Open the folder using subprocess
     try:
-        # Windows-specific command
-        if os.name == "nt":
-            subprocess.Popen(f'explorer "{absolute_path}"', shell=True)
-        # macOS
-        elif os.name == "posix" and "darwin" in os.uname().sysname.lower():
-            subprocess.Popen(["open", absolute_path])
-        # Linux
-        else:
-            subprocess.Popen(["xdg-open", absolute_path])
+        if os.name == "nt":  # Windows
+            # Use explorer to select the specific file
+            subprocess.run(["explorer", "/select,", absolute_file])
+        elif "darwin" in os.uname().sysname.lower():  # macOS
+            # Open Finder and highlight the file
+            subprocess.run(["open", "-R", absolute_file])
+        else:  # Linux
+            # Most file managers support showing/selecting files
+            # Try common file managers in order of popularity
+            file_managers = [
+                ["nautilus", "--select"],  # GNOME
+                ["dolphin", "--select"],  # KDE
+                ["nemo", "--no-desktop"],  # Cinnamon
+                ["thunar"],  # XFCE
+            ]
 
-        return {"message": f"Folder '{absolute_path}' opened successfully."}
+            for fm in file_managers:
+                try:
+                    fm.append(absolute_file)
+                    subprocess.run(fm)
+                    break
+                except FileNotFoundError:
+                    continue
+            else:
+                # If no file manager worked, just open the folder
+                subprocess.run(["xdg-open", absolute_folder])
+
+        return {
+            "message": f"File '{filename}' highlighted in folder '{absolute_folder}'"
+        }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to open folder and highlight file: {str(e)}",
+        )
+
+
+# @router.get("/open_folder/{video_id}")
+# async def open_folder(video_id: str):
+#     # Ensure the video ID exists in the task manager
+#     if video_id not in download_tasks:
+#         raise HTTPException(
+#             status_code=404, detail=f"No download task found for video ID: {video_id}"
+#         )
+
+#     # Get the output directory from the task
+#     task = download_tasks[video_id]
+#     folder_path = task.output_dir
+#     print(f"Folder: {folder_path}")
+
+#     if not folder_path:
+#         raise HTTPException(
+#             status_code=400, detail="Output directory not set for this download task."
+#         )
+
+#     # Resolve absolute path
+#     absolute_path = os.path.abspath(folder_path)
+#     print(f"Abs path: {absolute_path}")
+#     # Verify folder exists
+#     if not os.path.isdir(absolute_path):
+#         raise HTTPException(
+#             status_code=404, detail=f"Folder does not exist: {absolute_path}"
+#         )
+
+#     # Open the folder using subprocess
+#     try:
+#         # Windows-specific command
+#         if os.name == "nt":
+#             subprocess.Popen(f'explorer "{absolute_path}"', shell=True)
+#         # macOS
+#         elif os.name == "posix" and "darwin" in os.uname().sysname.lower():
+#             subprocess.Popen(["open", absolute_path])
+#         # Linux
+#         else:
+#             subprocess.Popen(["xdg-open", absolute_path])
+
+#         return {"message": f"Folder '{absolute_path}' opened successfully."}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
+
+
+@router.get("/download_list")
+async def get_download_status(
+    video_id: str | None = Query(None),
+    status: DownloadStatus | None = Query(None),
+    video_title: str | None = Query(None),
+    stage: str | None = Query(None),
+    quality: str | None = Query(None),
+    db: Session = Depends(get_db),
+):
+    if video_id:
+        download = db.query(Download).filter(Download.video_id == video_id).first()
+        return download
+    elif status:
+        downloads = db.query(Download).filter(Download.status == status).all()
+        return downloads
+    elif video_title:
+        # Use case-insensitive substring matching
+        downloads = (
+            db.query(Download).filter(Download.title.ilike(f"%{video_title}%")).all()
+        )
+        return downloads
+    elif stage:
+        downloads = db.query(Download).filter(Download.stage == stage).all()
+        return downloads
+    elif quality:
+        downloads = db.query(Download).filter(Download.quality == quality).all()
+        return downloads
+    else:
+        downloads = db.query(Download).all()
+        return downloads
