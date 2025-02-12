@@ -2,9 +2,6 @@ from googleapiclient.discovery import build
 from datetime import datetime
 from ..models.playlists import SortOrder
 
-# Path to your client_secrets.json file
-CLIENT_SECRETS_FILE = "core/client_secrets.json"
-
 # This scope allows reading your YouTube subscriptions
 SCOPES = [
     "https://www.googleapis.com/auth/youtube",

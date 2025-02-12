@@ -1,4 +1,3 @@
-tmp/
 .idea
 .ipynb_checkpoints
 .mypy_cache
@@ -16,14 +15,23 @@ log.txt
 Pipfile.lock
 env3.*
 env
-.env
 docs_build
 site_build
 venv
 docs.zip
 archive.zip
-.pickle
-token.json
-.db
+
+# vim temporary files
+*~
+.*.sw?
+.cache
+
+# macOS
+.DS_Store
+tmp
 token.json
 sqlite.db
+core/client_secrets.json
+core/client_secrets_2.json
+creds
+.env
