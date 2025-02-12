@@ -1,5 +1,11 @@
 from pydantic import BaseModel
 from typing import Literal, List
+from enum import Enum
+
+
+class SortOrder(str, Enum):
+    NEWEST = "newest"
+    OLDEST = "oldest"
 
 
 class PlaylistCreateRequest(BaseModel):

@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi import Query, Depends, APIRouter
 from fastapi.exceptions import HTTPException
 
@@ -6,19 +6,25 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from ..core.tools import (
-    get_playlist,
+    get_playlist_items,
     add_playlist_videos,
+    get_playlists,
 )
 
-from ..models.playlists import PlaylistCreateRequest, PlaylistAddVideosRequest
+from ..models.playlists import (
+    PlaylistCreateRequest,
+    PlaylistAddVideosRequest,
+    SortOrder,
+)
 
 from ..dependencies.dependency import get_credentials
+from ..models import playlists
 
 
 router = APIRouter(prefix="/playlists", tags=["Playlists"])
 
 
-@router.get("/")
+@router.get("/mine")
 async def collect_playlists(
     max_results=Annotated[int, Query(50, ge=1, le=100)],
     credentials=Depends(get_credentials),
@@ -47,15 +53,16 @@ async def collect_playlists(
         raise HTTPException(status_code=500, detail=f"Unexpected error: {e}")
 
 
-@router.get("/{playlist_id}")
-async def get_playlist_videos(
-    playlist_id: str,
-    max_results: int = Query(20, ge=1, le=1000),
+@router.get("/")
+async def collect_playlists(
+    channel_id: str,
+    max_results: int = Query(50, ge=1, le=100),
     credentials=Depends(get_credentials),
+    page_token: Optional[str] = None,
 ):
     try:
-        playlist = get_playlist(credentials, playlist_id, max_results)
-        return playlist
+        playlists = get_playlists(credentials, channel_id, max_results, page_token)
+        return playlists
     except HttpError as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
 
@@ -122,5 +129,19 @@ async def add_videos_to_playlist(
         response = add_playlist_videos(youtube, videos_request)
         return response
 
+    except HttpError as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred: {e}")
+
+
+@router.get("/items/")
+async def get_playlist_videos(
+    playlist_id: str = "PLX7CQOTnV_M35rbnhHyMHLrUXQlG71zef",
+    max_results: int = Query(500, ge=1, le=1000),
+    sort_order: SortOrder = Query(SortOrder.OLDEST),
+    credentials=Depends(get_credentials),
+):
+    try:
+        videos = get_playlist_items(credentials, playlist_id, max_results, sort_order)
+        return videos
     except HttpError as e:
         raise HTTPException(status_code=500, detail=f"An error occurred: {e}")

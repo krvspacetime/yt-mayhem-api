@@ -31,7 +31,8 @@ origins = [
     "https://localhost.tiangolo.com",
     "http://localhost",
     "http://localhost:5173",
-    "http://localhost:5173/",
+    "http://localhost:5174/",
+    "http://localhost:5175/",
 ]
 
 app.add_middleware(
@@ -41,22 +42,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     try:
-#         with engine.connect() as connection:
-#             print(f"Database connection successful! {connection}")
-#     except Exception as e:
-#         print("Database connection failed!", e)
-#     yield
-#     # Clean up the ML models and release the resources
-#     print("Shutting down...")
-#     engine.dispose()
-
-
-# app = FastAPI(lifespan=lifespan)
 
 
 @app.middleware("http")

@@ -6,7 +6,7 @@ from enum import Enum
 class DownloadStatus(Enum):
     QUEUED = "queued"
     DOWNLOADING = "downloading"
-    COMPLETE = "complete!"
+    COMPLETE = "complete"
     CANCELED = "canceled"
     ERROR = "error"
     MERGED = "merged"
