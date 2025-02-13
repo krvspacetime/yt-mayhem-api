@@ -3,7 +3,16 @@ from typing import Annotated
 from fastapi import FastAPI, Query, Depends, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import downloads, search, channels, ouauth2, playlists, comments, history
+from .routers import (
+    downloads,
+    search,
+    channels,
+    ouauth2,
+    playlists,
+    comments,
+    history,
+    home,
+)
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -23,6 +32,7 @@ app.include_router(ouauth2.router)
 app.include_router(playlists.router)
 app.include_router(comments.router)
 app.include_router(history.router)
+app.include_router(home.router)
 
 load_dotenv()
 
