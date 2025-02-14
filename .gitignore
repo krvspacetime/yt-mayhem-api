@@ -1,7 +1,4 @@
-<<<<<<< HEAD
-=======
 tmp/
->>>>>>> 80d50adeb559637e7c7e9fdf89acb19f0599a6ee
 .idea
 .ipynb_checkpoints
 .mypy_cache
@@ -14,28 +11,18 @@ site
 .coverage*
 coverage.xml
 .netlify
-test.db
 log.txt
 Pipfile.lock
 env3.*
 env
-<<<<<<< HEAD
-=======
 .env
->>>>>>> 80d50adeb559637e7c7e9fdf89acb19f0599a6ee
 docs_build
 site_build
 venv
 docs.zip
 archive.zip
-<<<<<<< HEAD
-
-# vim temporary files
-*~
 .*.sw?
 .cache
-
-# macOS
 .DS_Store
 tmp
 token.json
@@ -44,10 +31,8 @@ core/client_secrets.json
 core/client_secrets_2.json
 creds
 .env
-=======
 .pickle
 token.json
 .db
 token.json
-sqlite.db
->>>>>>> 80d50adeb559637e7c7e9fdf89acb19f0599a6ee
+*.db
