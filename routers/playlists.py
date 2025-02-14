@@ -5,19 +5,19 @@ from fastapi.exceptions import HTTPException
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from ..core.tools import (
+from core.tools import (
     get_playlist_items,
     add_playlist_videos,
     get_playlists,
 )
 
-from ..models.playlists import (
+from models.playlists import (
     PlaylistCreateRequest,
     PlaylistAddVideosRequest,
     SortOrder,
 )
 
-from ..dependencies.dependency import get_credentials
+from dependencies.dependency import get_credentials
 
 
 router = APIRouter(prefix="/playlists", tags=["Playlists"])

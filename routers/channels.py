@@ -3,8 +3,8 @@ from googleapiclient.errors import HttpError
 
 from fastapi import APIRouter, HTTPException, Depends
 
-from ..dependencies.dependency import get_credentials
-from ..models.channels import ChannelSearchParams
+from dependencies.dependency import get_credentials
+from models.channels import ChannelSearchParams
 
 router = APIRouter(prefix="/channels", tags=["Channels"])
 

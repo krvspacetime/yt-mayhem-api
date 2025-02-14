@@ -2,11 +2,10 @@ import os
 import re
 from fastapi.exceptions import HTTPException
 from dotenv import load_dotenv
-from typing import List
 from fastapi import Query
 from googleapiclient.discovery import build
 
-from ..routers.ouauth2 import authenticate_youtube
+from routers.ouauth2 import authenticate_youtube
 
 load_dotenv()
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY")
@@ -30,7 +29,7 @@ YOUTUBE_URL_REGEX = (
 
 
 def validate_video_id(
-    video_id: str = Query(..., description="List of video IDs or URLs")
+    video_id: str = Query(..., description="List of video IDs or URLs"),
 ) -> str:
     """Validates a list of YouTube video IDs or URLs."""
     validated_id = None

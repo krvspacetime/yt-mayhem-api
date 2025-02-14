@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends
 from fastapi.exceptions import HTTPException
 
-from ..models.history import HistoryRecordModel, create_history_record
-from ..db.db import get_db, HistoryRecord
+from models.history import HistoryRecordModel, create_history_record
+from db.db import get_db, HistoryRecord
 from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/history", tags=["History"])

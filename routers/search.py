@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
-from ..models.search import YouTubeSearchParams
-from ..dependencies.dependency import get_credentials
-from ..db.db import get_db, SearchRecord, create_search_record
+from models.search import YouTubeSearchParams
+from dependencies.dependency import get_credentials
+from db.db import get_db, SearchRecord, create_search_record
 
 
 router = APIRouter(prefix="/search", tags=["Search"])

@@ -1,9 +1,8 @@
 from dotenv import load_dotenv
-from typing import Annotated
 from fastapi import FastAPI, Query, Depends, Request
 from fastapi.exceptions import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .routers import (
+from routers import (
     downloads,
     search,
     channels,
@@ -17,12 +16,11 @@ from .routers import (
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from .core.tools import (
-    get_subscriptions,
+from core.tools import (
     get_subscriptions_videos,
 )
 
-from .dependencies.dependency import get_credentials
+from dependencies.dependency import get_credentials
 
 app = FastAPI()
 app.include_router(downloads.router)

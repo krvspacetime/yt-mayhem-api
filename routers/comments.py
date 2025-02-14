@@ -1,6 +1,5 @@
 import os
 import google.generativeai as genai
-import pprint
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, Query
@@ -8,8 +7,8 @@ from fastapi.exceptions import HTTPException
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 
-from ..models.comments import AddCommentRequest, AICommentRequest
-from ..dependencies.dependency import get_youtube, get_credentials
+from models.comments import AddCommentRequest, AICommentRequest
+from dependencies.dependency import get_youtube, get_credentials
 
 router = APIRouter(prefix="/comments", tags=["Comments"])
 

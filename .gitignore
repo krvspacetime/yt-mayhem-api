@@ -36,3 +36,4 @@ token.json
 .db
 token.json
 *.db
+sqlite.db

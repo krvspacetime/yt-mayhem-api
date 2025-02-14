@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
-from ..models.downloads import DownloadStatus
+from models.downloads import DownloadStatus
 
 Base = declarative_base()
 

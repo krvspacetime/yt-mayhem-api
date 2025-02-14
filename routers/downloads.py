@@ -11,17 +11,17 @@ from typing import Dict, Any, AsyncGenerator, Optional
 from yt_dlp import YoutubeDL
 from sqlalchemy.orm import Session
 
-from ..db.db import Download
+from db.db import Download
 
 # Replace these with the imports and definitions of your custom classes and enums
-from ..core.download import (
+from core.download import (
     DownloadTask,
     DownloadStatus,
 )  # Example import
 
-from ..dependencies.dependency import validate_video_id
-from ..models.downloads import DownloadRequest, CancelParams
-from ..db.db import get_db
+from dependencies.dependency import validate_video_id
+from models.downloads import DownloadRequest, CancelParams
+from db.db import get_db
 
 # Router definition
 router = APIRouter(prefix="/downloads", tags=["Downloads"])

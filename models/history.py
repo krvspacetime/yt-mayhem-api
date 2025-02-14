@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from datetime import datetime
-from ..db.db import HistoryRecord
+from db.db import HistoryRecord
 
 
 # SQLite engine and session

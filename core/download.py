@@ -6,8 +6,8 @@ from yt_dlp import YoutubeDL
 
 from sqlalchemy.orm import Session
 
-from ..db.db import Download
-from ..models.downloads import DownloadStatus
+from db.db import Download
+from models.downloads import DownloadStatus
 
 
 logging.basicConfig()

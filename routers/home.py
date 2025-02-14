@@ -4,7 +4,7 @@ from googleapiclient.discovery import build
 
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List, Dict
-from ..dependencies.dependency import get_credentials
+from dependencies.dependency import get_credentials
 
 router = APIRouter(prefix="/home", tags=["Home Feed"])
 
