@@ -20,7 +20,7 @@ from ..core.download import (
 )  # Example import
 
 from ..dependencies.dependency import validate_video_id
-from ..models.downloads import DownloadRequest, CancelParams, DownloadListRequest
+from ..models.downloads import DownloadRequest, CancelParams
 from ..db.db import get_db
 
 # Router definition
@@ -244,76 +244,6 @@ async def download_video(request: DownloadRequest):
         raise HTTPException(
             status_code=500, detail=f"Error downloading video: {e.stderr}"
         )
-
-
-# @router.get("/open_folder/{video_id}")
-# async def open_folder(video_id: str, db: Session = Depends(get_db)):
-#     # Ensure the video ID exists in the task manager
-#     download_item = db.query(Download).filter(Download.video_id == video_id).first()
-#     if download_item:
-#         raise HTTPException(
-#             status_code=404, detail=f"No download task found for video ID: {video_id}"
-#         )
-
-#     # Get the output directory and filename from the task
-#     folder_path = download_item[0].output_dir
-#     filename = download_item[0].title  # This should be the full filename with extension
-
-#     if not folder_path:
-#         raise HTTPException(
-#             status_code=400, detail="Output directory not set for this download task."
-#         )
-
-#     # Resolve absolute paths
-#     absolute_folder = os.path.abspath(folder_path)
-#     absolute_file = os.path.join(absolute_folder, filename)
-
-#     # Verify folder and file exist
-#     if not os.path.isdir(absolute_folder):
-#         raise HTTPException(
-#             status_code=404, detail=f"Folder does not exist: {absolute_folder}"
-#         )
-#     if not os.path.isfile(absolute_file):
-#         raise HTTPException(
-#             status_code=404, detail=f"File does not exist: {absolute_file}"
-#         )
-
-#     try:
-#         if os.name == "nt":  # Windows
-#             # Use explorer to select the specific file
-#             subprocess.run(["explorer", "/select,", absolute_file])
-#         elif "darwin" in os.uname().sysname.lower():  # macOS
-#             # Open Finder and highlight the file
-#             subprocess.run(["open", "-R", absolute_file])
-#         else:  # Linux
-#             # Most file managers support showing/selecting files
-#             # Try common file managers in order of popularity
-#             file_managers = [
-#                 ["nautilus", "--select"],  # GNOME
-#                 ["dolphin", "--select"],  # KDE
-#                 ["nemo", "--no-desktop"],  # Cinnamon
-#                 ["thunar"],  # XFCE
-#             ]
-
-#             for fm in file_managers:
-#                 try:
-#                     fm.append(absolute_file)
-#                     subprocess.run(fm)
-#                     break
-#                 except FileNotFoundError:
-#                     continue
-#             else:
-#                 # If no file manager worked, just open the folder
-#                 subprocess.run(["xdg-open", absolute_folder])
-
-#         return {
-#             "message": f"File '{filename}' highlighted in folder '{absolute_folder}'"
-#         }
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Failed to open folder and highlight file: {str(e)}",
-#         )
 
 
 @router.get("/open_folder/{video_id}")

@@ -18,21 +18,13 @@ from ..models.playlists import (
 )
 
 from ..dependencies.dependency import get_credentials
-<<<<<<< HEAD
-=======
-from ..models import playlists
 
->>>>>>> 80d50adeb559637e7c7e9fdf89acb19f0599a6ee
 
 router = APIRouter(prefix="/playlists", tags=["Playlists"])
 
 
 @router.get("/mine")
-<<<<<<< HEAD
 async def collect_playlists_mine(
-=======
-async def collect_playlists(
->>>>>>> 80d50adeb559637e7c7e9fdf89acb19f0599a6ee
     max_results=Annotated[int, Query(50, ge=1, le=100)],
     credentials=Depends(get_credentials),
 ):

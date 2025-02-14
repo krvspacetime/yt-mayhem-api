@@ -67,7 +67,7 @@ class DownloadTask:
             )
 
         elif d["status"] == "finished":
-            self.stage = "download complete"
+            self.stage = f"download complete for: {d['info_dict']['filename']}"
             self.status = DownloadStatus.DOWNLOADING  # Still downloading if merging
 
         elif d["status"] == "error":

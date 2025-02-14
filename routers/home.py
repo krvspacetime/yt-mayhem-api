@@ -71,7 +71,7 @@ def get_homefeed(credentials=Depends(get_credentials)):
         # Step 1: Fetch 30 subscribed channels
         subscriptions = (
             youtube.subscriptions()
-            .list(part="snippet", mine=True, maxResults=30)
+            .list(part="snippet", mine=True, maxResults=5)
             .execute()
         )
 
@@ -106,7 +106,7 @@ def get_homefeed(credentials=Depends(get_credentials)):
 
         # Step 3: Trim to exactly 50 videos
         random.shuffle(videos)  # Shuffle to keep it dynamic
-        videos = videos[:50]
+        videos = videos[:10]
 
         return {"videos": videos}
 
