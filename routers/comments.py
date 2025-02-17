@@ -8,7 +8,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 
 from models.comments import AddCommentRequest, AICommentRequest
-from dependencies.dependency import get_youtube, get_credentials
+from dependencies.dependency import get_credentials
 
 router = APIRouter(prefix="/comments", tags=["Comments"])
 
@@ -22,20 +22,10 @@ async def get_video_comments(
     video_id: str,
     max_results: int = Query(10, ge=1, le=100),
     page_token: str | None = None,
-    youtube=Depends(get_youtube),
+    youtube=Depends(get_credentials),
 ):
-    """
-    Get comments for a specific YouTube video.
-
-    Args:
-        video_id (str): The ID of the YouTube video.
-        max_results (int): The maximum number of comments to retrieve.
-        page_token (str): Token for pagination (optional).
-
-    Returns:
-        dict: A dictionary with the comments and pagination info.
-    """
     try:
+        youtube = build("youtube", "v3", credentials=youtube)
         # Make the API request to get comments
         request_params = {
             "part": "snippet",
@@ -65,7 +55,6 @@ async def add_comment(
     credentials=Depends(get_credentials),
 ):
     try:
-        # Define the body for the commentThreads.insert method
         body = {
             "snippet": {
                 "videoId": request.video_id,

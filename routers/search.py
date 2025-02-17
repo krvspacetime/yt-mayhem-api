@@ -1,12 +1,12 @@
 from googleapiclient.discovery import build
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 
 from models.search import YouTubeSearchParams
 from dependencies.dependency import get_credentials
-from db.db import get_db, SearchRecord, create_search_record
-
+from db.db import get_db, create_search_record
+from schemas.schemas import SearchRecord
+from models.search import SearchRecordAddRequest
 
 router = APIRouter(prefix="/search", tags=["Search"])
 
@@ -45,10 +45,6 @@ async def youtube_search(
         "totalResults": response["pageInfo"]["totalResults"],
         "resultsPerPage": response["pageInfo"]["resultsPerPage"],
     }
-
-
-class SearchRecordAddRequest(BaseModel):
-    query: str
 
 
 @router.post("/add")

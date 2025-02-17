@@ -9,44 +9,6 @@ from dependencies.dependency import get_credentials
 router = APIRouter(prefix="/home", tags=["Home Feed"])
 
 
-# Function to fetch user's subscriptions
-def get_subscriptions(youtube) -> List[str]:
-    subscriptions = []
-    request = youtube.subscriptions().list(part="snippet", mine=True, maxResults=50)
-
-    while request:
-        response = request.execute()
-        for item in response.get("items", []):
-            subscriptions.append(item["snippet"]["resourceId"]["channelId"])
-        request = youtube.subscriptions().list_next(request, response)
-
-    return subscriptions
-
-
-# Function to fetch latest videos from subscriptions
-def get_subscription_videos(youtube, channel_ids: List[str]) -> List[Dict]:
-    videos = []
-    for channel_id in channel_ids[:10]:  # Limit to avoid quota issues
-        request = youtube.search().list(
-            part="snippet", channelId=channel_id, order="date", maxResults=5
-        )
-        response = request.execute()
-
-        for item in response.get("items", []):
-            # Check if it's a video, not a channel or playlist
-            if "id" in item and item["id"].get("kind") == "youtube#video":
-                videos.append(
-                    {
-                        "title": item["snippet"]["title"],
-                        "videoId": item["id"]["videoId"],  # Safe access
-                        "thumbnail": item["snippet"]["thumbnails"]["high"]["url"],
-                        "channelTitle": item["snippet"]["channelTitle"],
-                    }
-                )
-
-    return videos
-
-
 # Function to fetch trending videos
 def get_trending_videos(youtube) -> List[Dict]:
     request = youtube.videos().list(

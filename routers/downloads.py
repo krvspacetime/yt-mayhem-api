@@ -11,10 +11,10 @@ from typing import Dict, Any, AsyncGenerator, Optional
 from yt_dlp import YoutubeDL
 from sqlalchemy.orm import Session
 
-from db.db import Download
+from schemas.schemas import Download
 
 # Replace these with the imports and definitions of your custom classes and enums
-from core.download import (
+from core.downloads import (
     DownloadTask,
     DownloadStatus,
 )  # Example import
