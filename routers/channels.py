@@ -48,3 +48,30 @@ async def get_channel_sections(
         return response
     except HttpError as e:
         raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")
+
+
+@router.get("/{channel_id}/cover_photo")
+async def get_channel_cover_photo(
+    channel_id: str, credentials=Depends(get_credentials)
+):
+    # Workaround for bannerExternalUrl
+    # Append to the end of the low resolution image
+    BANNER_URL_WORKAROUND = "=w2120-fcrop64=1,00005a57ffffa5a8-k-c0xffffffff-no-nd-rj"
+
+    youtube = build("youtube", "v3", credentials=credentials)
+    try:
+        response = (
+            youtube.channels().list(part="brandingSettings", id=channel_id).execute()
+        )
+        if not response.get("items"):
+            raise HTTPException(status_code=404, detail="Channel not found.")
+
+        cover_photo_url = response["items"][0]["brandingSettings"]["image"][
+            "bannerExternalUrl"
+        ]
+        return {
+            "cover_photo_url": cover_photo_url + BANNER_URL_WORKAROUND,
+            "response": response,
+        }
+    except HttpError as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching data: {str(e)}")

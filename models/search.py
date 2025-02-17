@@ -14,3 +14,7 @@ class YouTubeSearchParams(BaseModel):
     order: Literal["relevance", "date", "rating", "viewCount"] = "relevance"
     publishedAfter: datetime | None = None
     publishedBefore: datetime | None = None
+
+
+class SearchRecordAddRequest(BaseModel):
+    query: str

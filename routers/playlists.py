@@ -5,7 +5,7 @@ from fastapi.exceptions import HTTPException
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from core.tools import (
+from core.playlists import (
     get_playlist_items,
     add_playlist_videos,
     get_playlists,
@@ -112,17 +112,6 @@ async def add_videos_to_playlist(
     videos_request: PlaylistAddVideosRequest,
     credentials=Depends(get_credentials),
 ):
-    """
-    Adds a list of videos to a specified YouTube playlist.
-
-    Args:
-        playlist_id (str): ID of the playlist to add videos to.
-        videos_request (PlaylistAddVideosRequest): Contains the list of video IDs to add.
-        credentials: OAuth 2.0 credentials for the authenticated user.
-
-    Returns:
-        dict: Summary of the added videos.
-    """
     try:
         youtube = build("youtube", "v3", credentials=credentials)
         response = add_playlist_videos(youtube, videos_request)

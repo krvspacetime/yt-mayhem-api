@@ -6,7 +6,7 @@ from yt_dlp import YoutubeDL
 
 from sqlalchemy.orm import Session
 
-from db.db import Download
+from schemas.schemas import Download
 from models.downloads import DownloadStatus
 
 

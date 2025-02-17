@@ -28,7 +28,7 @@ class ChannelInfoResponse(BaseModel):
 
 class ChannelSearchParams(BaseModel):
     channel_id: str
-    part: Literal["snippet", "statistics"] = "snippet"
+    part: str = "snippet"
     max_results: int = Field(15, ge=1, le=50)
     page_token: str | None = None
     videoDefinition: Literal["any", "high", "medium", "low"] = "any"
