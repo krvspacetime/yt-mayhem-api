@@ -3,6 +3,7 @@ from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.auth.exceptions import RefreshError
 import os
 import json
 
@@ -25,6 +26,10 @@ REDIRECT_URI = "http://localhost:8000/oauth2/oauth2callback"
 
 
 def initiate_flow():
+    if not os.path.exists(CLIENT_SECRETS_FULL_PATH):
+        raise FileNotFoundError(
+            "Cannot initiate flow. Client secrets file not found. Please upload the credentials file first."
+        )
     flow = Flow.from_client_secrets_file(
         CLIENT_SECRETS_FULL_PATH,
         scopes=SCOPES,
@@ -34,29 +39,35 @@ def initiate_flow():
 
 
 def authenticate_youtube():
-    if os.path.exists(TOKEN_FULL_PATH):
-        with open(TOKEN_FULL_PATH, "r") as token_file:
-            credentials_data = json.load(token_file)
-            credentials = Credentials.from_authorized_user_info(
-                credentials_data, SCOPES
-            )
-    else:
-        raise Exception("Credentials not found. Please authorize first.")
-
-    if credentials and credentials.expired and credentials.refresh_token:
-        credentials.refresh(Request())
-        # Save the refreshed credentials
-        with open(TOKEN_FULL_PATH, "w") as token_file:
-            token_file.write(credentials.to_json())
-
-    return credentials
+    try:
+        if os.path.exists(TOKEN_FULL_PATH):
+            with open(TOKEN_FULL_PATH, "r") as token_file:
+                credentials_data = json.load(token_file)
+                credentials = Credentials.from_authorized_user_info(
+                    credentials_data, SCOPES
+                )
+        if credentials and credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+            # Save the refreshed credentials
+            with open(TOKEN_FULL_PATH, "w") as token_file:
+                token_file.write(credentials.to_json())
+        return credentials
+    except RefreshError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/authorize")
 def authorize():
-    flow = initiate_flow()
-    authorization_url, _ = flow.authorization_url(prompt="consent")
-    return RedirectResponse(authorization_url)
+    try:
+        flow = initiate_flow()
+        authorization_url, _ = flow.authorization_url(prompt="consent")
+        return RedirectResponse(authorization_url)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/oauth2callback")
@@ -74,18 +85,20 @@ def oauth2callback(code: str):
 
 @router.get("/check")
 async def check_creds(credentials=Depends(authenticate_youtube)):
-    if credentials:
-        return {
-            "valid": True,
-            "token": credentials.token,
-            "refresh_token": credentials.refresh_token,
-            "token_uri": credentials.token_uri,
-            "client_id": credentials.client_id,
-            "scopes": credentials.scopes,
-        }
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED, detail="No valid credentials found."
-    )
+    try:
+        if credentials:
+            return {
+                "valid": True,
+                "token": credentials.token,
+                "refresh_token": credentials.refresh_token,
+                "token_uri": credentials.token_uri,
+                "client_id": credentials.client_id,
+                "scopes": credentials.scopes,
+            }
+    except RefreshError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/")
