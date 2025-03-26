@@ -66,11 +66,15 @@ async def get_channel_cover_photo(
         if not response.get("items"):
             raise HTTPException(status_code=404, detail="Channel not found.")
 
-        cover_photo_url = response["items"][0]["brandingSettings"]["image"][
-            "bannerExternalUrl"
-        ]
+        cover_photo_url = (
+            response["items"][0]["brandingSettings"]["image"]["bannerExternalUrl"]
+            if response["items"][0]["brandingSettings"].get("image")
+            else None
+        )
         return {
-            "cover_photo_url": cover_photo_url + BANNER_URL_WORKAROUND,
+            "cover_photo_url": cover_photo_url + BANNER_URL_WORKAROUND
+            if cover_photo_url
+            else None,
             "response": response,
         }
     except HttpError as e:

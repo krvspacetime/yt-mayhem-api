@@ -80,13 +80,15 @@ def oauth2callback(code: str):
     with open(TOKEN_FULL_PATH, "w") as token_file:
         token_file.write(credentials.to_json())
 
-    return {"message": "Authorization complete. You can now access the API."}
+    # Redirect back to your React app
+    return RedirectResponse(url="http://localhost:5173")  # Adjust the port if needed
 
 
 @router.get("/check")
 async def check_creds(credentials=Depends(authenticate_youtube)):
+    has_secret = os.path.exists(CLIENT_SECRETS_FULL_PATH)
     try:
-        if credentials:
+        if credentials and has_secret:
             return {
                 "valid": True,
                 "token": credentials.token,
@@ -95,6 +97,10 @@ async def check_creds(credentials=Depends(authenticate_youtube)):
                 "client_id": credentials.client_id,
                 "scopes": credentials.scopes,
             }
+        elif not has_secret:
+            return {"valid": False, "reason": "No client secrets found."}
+        else:
+            return {"valid": False, "reason": "No valid credentials found."}
     except RefreshError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
     except Exception as e:
